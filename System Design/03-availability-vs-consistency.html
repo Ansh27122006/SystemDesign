@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Module 03 — Availability vs Consistency</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#F7F9FC; --panel-2:#E7ECF3; --border:#5C6B84;
+    --text:#0F172A; --muted:#3F4C60;
+    --cyan:#0B7C82; --amber:#B45309; --coral:#C81E3A; --violet:#6D28D9; --green:#15803D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;}
+  ::selection{background:var(--cyan); color:#FFFFFF;}
+  body{
+    background-image:linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size:36px 36px;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding:0 24px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header{padding:52px 0 34px; position:relative; overflow:hidden;}
+  .crumb{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:2.5px; color:var(--cyan); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .crumb .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(30px,5vw,50px); line-height:1.06; margin-top:14px; letter-spacing:-0.5px;}
+  h1 .hl{color:var(--cyan);}
+  .lead{color:var(--muted); font-size:16px; max-width:680px; margin-top:16px; line-height:1.6;}
+
+  .hero-anim{margin-top:34px; background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:24px; position:relative; box-shadow:0 4px 14px rgba(15,23,42,0.08);}
+  .hero-anim .cap{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .hero-anim .cap::before{content:'▸'; color:var(--cyan);}
+
+  main{padding:10px 0 100px;}
+  section{margin-top:56px;}
+  .sec-eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber);}
+  .sec-title{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:8px;}
+  .sec-desc{color:var(--muted); font-size:15px; margin-top:10px; max-width:720px; line-height:1.65;}
+
+  .versus{display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:stretch; margin-top:26px;}
+  @media(max-width:760px){.versus{grid-template-columns:1fr;}}
+  .vcard{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:24px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .vcard.a{border-top:4px solid var(--violet);} .vcard.b{border-top:4px solid var(--coral);}
+  .vcard h3{font-family:'Space Grotesk',sans-serif; font-size:20px; margin-bottom:10px;}
+  .vcard.a h3{color:var(--violet);} .vcard.b h3{color:var(--coral);}
+  .vcard p{color:var(--muted); font-size:14px; line-height:1.65;}
+  .vcard .analogy{margin-top:14px; padding:12px 14px; background:var(--panel-2); border-radius:8px; font-size:13px; border-left:3px solid; }
+  .vcard.a .analogy{border-color:var(--violet);} .vcard.b .analogy{border-color:var(--coral);}
+  .vcard .metrics-list{margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;}
+  .vcard .metrics-list span{font-family:'JetBrains Mono',monospace; font-size:11px; background:var(--panel-2); border:1px solid var(--border); padding:4px 9px; border-radius:6px; color:var(--text);}
+  .vs-mid{display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--muted); font-size:14px;}
+
+  .panel{background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:26px; margin-top:26px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .panel-label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+  .panel-label::before{content:'▸'; color:var(--cyan);}
+  .panel-note{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.6; border-top:1px solid var(--border); padding-top:14px;}
+  .panel-note b{color:var(--text);}
+
+  .controls{display:flex; gap:22px; flex-wrap:wrap; margin-top:20px; align-items:center;}
+  .ctrl{display:flex; flex-direction:column; gap:6px; min-width:190px;}
+  .ctrl label{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted);}
+  button.btn{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:#FFFFFF; background:var(--cyan); border:none; border-radius:8px; padding:11px 18px; cursor:pointer; transition:transform .15s, opacity .15s;}
+  button.btn:hover{transform:translateY(-1px); opacity:.9;}
+  button.btn.ghost{background:transparent; color:var(--text); border:2px solid var(--border);}
+  button.btn.violet{background:var(--violet);}
+  button.btn.warn{background:var(--coral);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+  .toggle-row{display:flex; gap:8px; background:var(--panel-2); border:2px solid var(--border); border-radius:9px; padding:4px; width:fit-content; flex-wrap:wrap;}
+  .toggle-row button{font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 16px; border-radius:6px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-weight:600;}
+  .toggle-row button.active{background:var(--cyan); color:#FFFFFF; font-weight:700;}
+
+  .readout{display:flex; gap:28px; margin-top:18px; flex-wrap:wrap;}
+  .readout .item{font-family:'JetBrains Mono',monospace;}
+  .readout .item .l{font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;}
+  .readout .item .v{font-size:22px; font-weight:700; margin-top:2px;}
+
+  svg text{font-family:'JetBrains Mono',monospace;}
+  .node-circle, .req-dot{transition:all .35s ease;}
+
+  .examples-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:26px;}
+  @media(max-width:760px){.examples-grid{grid-template-columns:1fr;}}
+  .ex-card{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .ex-card .ex-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;}
+  .ex-card h4{font-family:'Space Grotesk',sans-serif; font-size:16.5px; margin-bottom:6px;}
+  .ex-card p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .ex-card .tagrow{margin-top:12px; display:flex; gap:8px;}
+  .ex-card .tagrow span{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;}
+
+  .quadrant-wrap{display:grid; grid-template-columns:1fr 320px; gap:24px; margin-top:20px;}
+  @media(max-width:820px){.quadrant-wrap{grid-template-columns:1fr;}}
+  .quad-detail{background:var(--panel-2); border:2px solid var(--border); border-radius:12px; padding:18px; min-height:220px;}
+  .quad-detail h5{font-family:'Space Grotesk',sans-serif; font-size:15px; margin-bottom:8px;}
+  .quad-detail p{color:var(--muted); font-size:13px; line-height:1.6;}
+  .quad-detail .hint{color:var(--muted); font-size:12.5px; font-style:italic;}
+  .quad-dot{cursor:pointer;}
+
+  .activity{background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:2px dashed var(--border); border-radius:16px; padding:28px; margin-top:26px;}
+  .activity-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .activity-head .pill{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; background:var(--amber); color:#FFFFFF; padding:3px 9px; border-radius:20px; font-weight:700;}
+  .activity h4{font-family:'Space Grotesk',sans-serif; font-size:19px;}
+  .activity p.instr{color:var(--muted); font-size:14px; margin-top:6px; margin-bottom:20px;}
+  .scenario{border:2px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; background:var(--panel);}
+  .scenario .stext{font-size:14.5px; margin-bottom:12px; line-height:1.55;}
+  .choices{display:flex; gap:10px; flex-wrap:wrap;}
+  .choice-btn{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer; background:var(--panel-2); border:2px solid var(--border); color:var(--text); font-weight:600; transition:all .15s;}
+  .choice-btn:hover{border-color:var(--cyan);}
+  .choice-btn.correct{background:rgba(21,128,61,0.15); border-color:var(--green); color:var(--green);}
+  .choice-btn.wrong{background:rgba(200,30,58,0.13); border-color:var(--coral); color:var(--coral);}
+  .choice-btn.disabled{pointer-events:none;}
+  .explain{display:none; margin-top:12px; font-size:13.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; line-height:1.6;}
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+  .score-bar{display:flex; align-items:center; gap:14px; margin-top:22px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted);}
+  .score-track{flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--border);}
+  .score-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--green)); transition:width .4s;}
+
+  .myth-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+  .myth{background:var(--panel); border:2px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .myth .x{color:var(--coral); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .myth .body b{display:block; font-size:14px; margin-bottom:4px;}
+  .myth .body p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  table.summary{width:100%; border-collapse:collapse; margin-top:20px;}
+  table.summary th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:10px 12px; border-bottom:2px solid var(--border);}
+  table.summary td{padding:12px; font-size:13.5px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+
+  .formula-box{margin-top:18px; background:var(--panel-2); border:2px solid var(--border); border-radius:12px; padding:20px; text-align:center;}
+  .formula-box .f{font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:var(--cyan);}
+  .formula-box .fnote{color:var(--muted); font-size:13px; margin-top:8px;}
+
+  footer{border-top:2px solid var(--border); padding:28px 0; text-align:center; color:var(--muted); font-size:12.5px; font-family:'JetBrains Mono',monospace; margin-top:60px;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="crumb"><span class="dot"></span>SYSTEM DESIGN LAB · MODULE 03</div>
+    <h1>Availability <span class="hl">vs</span> Consistency</h1>
+    <p class="lead">The CAP theorem, in plain terms: a network <b>Partition</b> (a break in communication between nodes) is inevitable in any distributed system. When it happens, you must choose — keep answering requests (<b>Availability</b>) or guarantee every answer is correct (<b>Consistency</b>). You cannot fully have both at the same time.</p>
+
+    <div class="hero-anim">
+      <div class="cap">Opening analogy — two bank branches, one phone line down</div>
+      <svg id="svgBank" viewBox="0 0 900 240" width="100%" style="max-height:270px; display:block;"></svg>
+      <div class="controls">
+        <div class="toggle-row" id="bankToggle">
+          <button data-mode="normal" class="active">Normal operation</button>
+          <button data-mode="ap">Line down — stay Available</button>
+          <button data-mode="cp">Line down — stay Consistent</button>
+        </div>
+      </div>
+      <p class="panel-note" id="bankNote"><b>Normal operation:</b> both branches can call each other to confirm your balance before approving a withdrawal. Every answer is instant and correct.</p>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= DEFINITIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">01 · CORE DEFINITIONS</div>
+      <div class="sec-title">What CAP is actually asking</div>
+      <p class="sec-desc">CAP stands for Consistency, Availability, Partition tolerance. Partitions <b>will</b> happen — cables get cut, data centers lose connectivity, packets get dropped. So the real, practical choice is between C and A whenever P occurs.</p>
+
+      <div class="versus">
+        <div class="vcard a">
+          <h3>Availability (AP)</h3>
+          <p>Every request that reaches a working node gets <b>some</b> response, even during a partition — even if that response might not reflect the most recent write.</p>
+          <div class="analogy">🏦 <b>Analogy:</b> the branch keeps serving customers using its own local records, even though it can't reach the other branch to double-check.</div>
+          <div class="metrics-list">
+            <span>always responds</span><span>eventual consistency</span><span>DynamoDB, Cassandra</span>
+          </div>
+        </div>
+        <div class="vs-mid">VS</div>
+        <div class="vcard b">
+          <h3>Consistency (CP)</h3>
+          <p>Every read reflects the most recent write, everywhere. During a partition, a node may <b>refuse</b> to answer rather than risk returning stale or conflicting data.</p>
+          <div class="analogy">🏦 <b>Analogy:</b> the branch refuses withdrawals it can't verify with the other branch until the phone line is restored.</div>
+          <div class="metrics-list">
+            <span>refuses when unsure</span><span>strict consistency</span><span>traditional SQL, ZooKeeper</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SIM 1: CAP CLUSTER ================= -->
+    <section>
+      <div class="sec-eyebrow">02 · ANIMATION</div>
+      <div class="sec-title">Write a value, then break the network</div>
+      <p class="sec-desc">This is the core simulation for this module. Write a value to a 4-node cluster, trigger a partition, then watch what AP and CP each actually do differently when the nodes can't talk to each other.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — distributed cluster under partition</div>
+        <svg id="svgCap" viewBox="0 0 900 280" width="100%" style="max-height:320px;"></svg>
+        <div class="controls">
+          <button class="btn" id="writeBtn">① Write value = "42"</button>
+          <button class="btn warn" id="partitionBtn">② ⚡ Trigger network partition</button>
+          <button class="btn violet" id="apBtn" disabled>③ Resolve as AP (stay Available)</button>
+          <button class="btn ghost" id="cpBtn" disabled>③ Resolve as CP (stay Consistent)</button>
+          <button class="btn ghost" id="resetCap">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Network</div><div class="v" id="capNet" style="color:var(--green)">Healthy</div></div>
+          <div class="item"><div class="l">Mode</div><div class="v" id="capMode" style="color:var(--muted)">—</div></div>
+          <div class="item"><div class="l">Node states</div><div class="v" id="capState" style="color:var(--cyan)">In sync</div></div>
+        </div>
+        <p class="panel-note">Follow the buttons left to right. Notice that <b>AP never says no</b> — but the two sides of the cluster end up disagreeing. <b>CP never disagrees</b> — but the minority side stops answering entirely. Neither option is "correct" in general; it depends on what happens if your app shows the wrong answer versus no answer at all.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 2: REQUEST RACE ================= -->
+    <section>
+      <div class="sec-eyebrow">03 · ANIMATION</div>
+      <div class="sec-title">Watch a single request during a partition</div>
+      <p class="sec-desc">Zoom into one user's request hitting the minority partition. Compare what an AP system does versus what a CP system does, side by side, in real time.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — one request, two philosophies</div>
+        <svg id="svgRace" viewBox="0 0 900 260" width="100%" style="max-height:290px;"></svg>
+        <div class="controls">
+          <button class="btn" id="fireRequest">Send request to the cut-off node</button>
+          <button class="btn ghost" id="resetRace">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">AP node response</div><div class="v" id="raceAP" style="color:var(--violet)">waiting…</div></div>
+          <div class="item"><div class="l">CP node response</div><div class="v" id="raceCP" style="color:var(--coral)">waiting…</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= QUADRANT ================= -->
+    <section>
+      <div class="sec-eyebrow">04 · INTERACTIVE MAP</div>
+      <div class="sec-title">Where real systems land on CAP</div>
+      <p class="sec-desc">Click each dot. Note there's no "high/low" axis here like the earlier modules — it's a genuine either/or choice during a partition, plus how each system handles the "C" the rest of the time.</p>
+      <div class="quadrant-wrap">
+        <svg id="svgQuad" viewBox="0 0 520 400" width="100%" style="max-height:420px;"></svg>
+        <div class="quad-detail" id="quadDetail">
+          <h5>Click a dot</h5>
+          <p class="hint">Each point is a real database or system and which side of CAP it favors.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= REAL WORLD EXAMPLES ================= -->
+    <section>
+      <div class="sec-eyebrow">05 · REAL-WORLD EXAMPLES</div>
+      <div class="sec-title">How real products make this call</div>
+      <div class="examples-grid">
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(200,30,58,0.14); color:var(--coral);">🏦</div>
+          <h4>Bank transfers</h4>
+          <p>Moving money between accounts favors consistency. Showing a stale balance, or letting the same $100 be withdrawn twice from two disconnected replicas, causes real financial harm — so the system would rather reject the transaction than risk it.</p>
+          <div class="tagrow"><span style="background:rgba(200,30,58,0.14); color:var(--coral);">CONSISTENCY (CP)</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(109,40,217,0.14); color:var(--violet);">🌍</div>
+          <h4>DNS</h4>
+          <p>DNS is designed to always answer, even with a slightly stale record — that's exactly what TTLs (time-to-live) are for. An unreachable DNS server breaks the entire internet for its users, so availability wins decisively here.</p>
+          <div class="tagrow"><span style="background:rgba(109,40,217,0.14); color:var(--violet);">AVAILABILITY (AP)</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(109,40,217,0.14); color:var(--violet);">🛒</div>
+          <h4>Shopping cart (Amazon Dynamo)</h4>
+          <p>Amazon's original Dynamo paper explicitly chose availability for the shopping cart: it's far better to let a customer add an item (and merge conflicting cart versions later) than to block them from shopping because two data centers can't sync right now.</p>
+          <div class="tagrow"><span style="background:rgba(109,40,217,0.14); color:var(--violet);">AVAILABILITY (AP)</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(200,30,58,0.14); color:var(--coral);">📦</div>
+          <h4>Inventory / stock counters</h4>
+          <p>Systems that track exact stock (airline seats, limited-drop sneakers) favor consistency — overselling the last unit to five different disconnected customers causes real fulfillment problems and angry customers.</p>
+          <div class="tagrow"><span style="background:rgba(200,30,58,0.14); color:var(--coral);">CONSISTENCY (CP)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MISCONCEPTIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">06 · COMMON CONFUSIONS</div>
+      <div class="sec-title">What students usually get wrong</div>
+      <div class="myth-list">
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"You can just pick C, A, and P — pick all three."</b><p>Partition tolerance isn't really optional — networks fail. The real trade-off only kicks in during a partition: you choose C or A for that window of time, not all three, all the time.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"A CP system is never available and an AP system is never consistent."</b><p>Both statements are false. A CP system is fully available during normal operation (no partition) — it only sacrifices availability during a partition. An AP system is usually consistent too — it just tolerates temporary staleness instead of blocking.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"This is a permanent architecture decision for the whole system."</b><p>Many real systems mix both — e.g. an e-commerce site might be AP for browsing/cart and CP for the final payment step, because the cost of being wrong is different for each.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section>
+      <div class="sec-eyebrow">07 · IN-CLASS ACTIVITY</div>
+      <div class="sec-title">CP or AP?</div>
+      <div class="activity" id="act1">
+        <div class="activity-head"><span class="pill">GRADED</span></div>
+        <h4>Pick the right side of the trade-off</h4>
+        <p class="instr">For each system, decide whether it should favor consistency or availability when a partition hits.</p>
+
+        <div class="scenario" data-answer="cp">
+          <div class="stext">1. A bank's system processing money transfers between accounts.</div>
+          <div class="choices"><button class="choice-btn" data-val="cp">Favor Consistency (CP)</button><button class="choice-btn" data-val="ap">Favor Availability (AP)</button></div>
+          <div class="explain">Favor <b>consistency</b>. Showing the wrong balance, or allowing a double-spend during a partition, is worse than the system briefly refusing a transaction.</div>
+        </div>
+
+        <div class="scenario" data-answer="ap">
+          <div class="stext">2. A social media "like" counter shown under a post.</div>
+          <div class="choices"><button class="choice-btn" data-val="cp">Favor Consistency (CP)</button><button class="choice-btn" data-val="ap">Favor Availability (AP)</button></div>
+          <div class="explain">Favor <b>availability</b>. If the like count is off by a few for a moment, nobody's harmed — but the feed going down entirely would upset every user.</div>
+        </div>
+
+        <div class="scenario" data-answer="ap">
+          <div class="stext">3. DNS — translating a domain name to an IP address.</div>
+          <div class="choices"><button class="choice-btn" data-val="cp">Favor Consistency (CP)</button><button class="choice-btn" data-val="ap">Favor Availability (AP)</button></div>
+          <div class="explain">Favor <b>availability</b>. DNS always answers, even with slightly stale records — an unreachable DNS server breaks the internet for its users.</div>
+        </div>
+
+        <div class="scenario" data-answer="cp">
+          <div class="stext">4. A distributed lock service used to make sure only one server at a time can process a critical job.</div>
+          <div class="choices"><button class="choice-btn" data-val="cp">Favor Consistency (CP)</button><button class="choice-btn" data-val="ap">Favor Availability (AP)</button></div>
+          <div class="explain">Favor <b>consistency</b>. If two disconnected nodes both believe they hold the lock, you get duplicate processing — the entire point of a lock is a single, agreed-upon truth, so it must refuse rather than guess.</div>
+        </div>
+
+        <div class="score-bar"><span>SCORE</span><div class="score-track"><div class="score-fill" id="scoreFill1"></div></div><span id="scoreText1">0 / 4</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SUMMARY ================= -->
+    <section>
+      <div class="sec-eyebrow">08 · SUMMARY</div>
+      <div class="sec-title">Quick reference</div>
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Aspect</th><th style="color:var(--violet)">Availability (AP)</th><th style="color:var(--coral)">Consistency (CP)</th></tr>
+          <tr><td>During a partition</td><td>Keeps answering on both sides</td><td>Minority side refuses requests</td></tr>
+          <tr><td>Risk</td><td>Data can briefly diverge / go stale</td><td>Reduced uptime for some users</td></tr>
+          <tr><td>Typical systems</td><td>DNS, Cassandra, DynamoDB, CDN caches</td><td>Traditional RDBMS, ZooKeeper, bank ledgers</td></tr>
+          <tr><td>Good fit for</td><td>Social feeds, carts, counters, catalogs</td><td>Payments, inventory, locks, auth tokens</td></tr>
+          <tr><td>Analogy</td><td>Branch keeps serving using local records</td><td>Branch refuses until it can verify</td></tr>
+          <tr><td>Key insight</td><td colspan="2">Partition tolerance isn't optional — the real choice (C vs A) only matters during the partition itself.</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>SYSTEM DESIGN LAB · MODULE 03 / 03 · Availability vs Consistency · reduced-motion friendly</footer>
+
+<script>
+/* ================= HERO BANK ANIMATION ================= */
+const svgBank = document.getElementById('svgBank');
+const bankNote = document.getElementById('bankNote');
+const bankNotes = {
+  normal:'<b>Normal operation:</b> both branches can call each other to confirm your balance before approving a withdrawal. Every answer is instant and correct.',
+  ap:'<b>Line down, staying Available:</b> Branch B keeps approving withdrawals using its own last-known balance, without waiting to confirm with Branch A. Customers are served instantly — but the two branches\' records may now disagree.',
+  cp:'<b>Line down, staying Consistent:</b> Branch B refuses to approve withdrawals it can\'t verify with Branch A. Customers at Branch B are turned away until the phone line is restored — but no incorrect balance is ever shown.'
+};
+let bankMode = 'normal';
+
+function renderBank(){
+  let svg='';
+  const lineOk = bankMode==='normal';
+  const lineColor = lineOk ? 'var(--green)' : 'var(--coral)';
+  const dash = lineOk ? '0' : '6 6';
+  svg += `<line x1="260" y1="120" x2="640" y2="120" stroke="${lineColor}" stroke-width="3" stroke-dasharray="${dash}"/>`;
+  svg += `<text x="450" y="105" fill="${lineColor}" font-size="11" text-anchor="middle">${lineOk?'PHONE LINE OK':'PHONE LINE DOWN'}</text>`;
+
+  // Branch A
+  svg += `<rect x="120" y="70" width="140" height="100" rx="12" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2"/>`;
+  svg += `<text x="190" y="60" fill="var(--muted)" font-size="11" text-anchor="middle">BRANCH A</text>`;
+  svg += `<text x="190" y="110" fill="var(--text)" font-size="13" text-anchor="middle" font-weight="700">Balance:</text>`;
+  svg += `<text x="190" y="132" fill="var(--cyan)" font-size="20" text-anchor="middle" font-weight="700">$500</text>`;
+  svg += `<text x="190" y="155" fill="var(--muted)" font-size="9.5" text-anchor="middle">verified &amp; original</text>`;
+
+  // Branch B
+  let bBalance = '$500', bColor='var(--cyan)', bNote='verified &amp; original';
+  if(bankMode==='ap'){ bBalance='$500 → $200'; bColor='var(--violet)'; bNote='approved a $300 withdrawal locally'; }
+  if(bankMode==='cp'){ bBalance='REFUSED'; bColor='var(--coral)'; bNote='blocked withdrawal — can\'t verify'; }
+  svg += `<rect x="640" y="70" width="140" height="100" rx="12" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2"/>`;
+  svg += `<text x="710" y="60" fill="var(--muted)" font-size="11" text-anchor="middle">BRANCH B</text>`;
+  svg += `<text x="710" y="110" fill="var(--text)" font-size="13" text-anchor="middle" font-weight="700">Balance:</text>`;
+  svg += `<text x="710" y="132" fill="${bColor}" font-size="${bankMode==='ap'?15:20}" text-anchor="middle" font-weight="700">${bBalance}</text>`;
+  svg += `<text x="710" y="155" fill="var(--muted)" font-size="9.5" text-anchor="middle">${bNote}</text>`;
+
+  // customer icon at B
+  svg += `<circle cx="710" cy="210" r="16" fill="${bankMode==='cp' ? 'var(--coral)' : 'var(--green)'}" opacity="0.85"/>`;
+  svg += `<text x="710" y="215" fill="#FFFFFF" font-size="13" text-anchor="middle">${bankMode==='cp'?'✕':'✓'}</text>`;
+  svg += `<text x="710" y="235" fill="var(--muted)" font-size="9.5" text-anchor="middle">customer at Branch B</text>`;
+
+  svgBank.innerHTML = svg;
+  bankNote.innerHTML = bankNotes[bankMode];
+}
+document.getElementById('bankToggle').addEventListener('click',(e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#bankToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  bankMode = btn.dataset.mode;
+  renderBank();
+});
+renderBank();
+
+/* ================= CAP CLUSTER SIMULATION ================= */
+const svgCap = document.getElementById('svgCap');
+let capWritten=false, capPartitioned=false, capMode=null;
+const nodePositions = [
+  {x:200,y:100,label:'Node A'},{x:340,y:180,label:'Node B'},
+  {x:560,y:180,label:'Node C'},{x:700,y:100,label:'Node D'},
+];
+let nodeValues = ['—','—','—','—'];
+
+function capCaption(){
+  if(capMode==='ap') return 'AP: both partitions kept answering — Node A/B still show "42", Node C/D accepted a new local write "99". Data has diverged.';
+  if(capMode==='cp') return 'CP: minority partition (A/B) refuses writes/reads until the network heals. No divergence, but reduced availability.';
+  if(capPartitioned) return 'Network partition active — choose how the system should respond above.';
+  if(capWritten) return 'Value "42" replicated to all nodes.';
+  return 'All nodes idle. Click "Write value" to begin.';
+}
+function renderCap(){
+  let svg='';
+  if(capPartitioned){
+    svg += `<rect x="150" y="40" width="260" height="180" rx="12" fill="rgba(200,30,58,0.06)" stroke="var(--coral)" stroke-width="2" stroke-dasharray="6 5"/>`;
+    svg += `<rect x="510" y="40" width="260" height="180" rx="12" fill="rgba(109,40,217,0.06)" stroke="var(--violet)" stroke-width="2" stroke-dasharray="6 5"/>`;
+    svg += `<text x="280" y="30" fill="var(--coral)" font-size="11" text-anchor="middle">PARTITION 1 (minority)</text>`;
+    svg += `<text x="640" y="30" fill="var(--violet)" font-size="11" text-anchor="middle">PARTITION 2 (majority)</text>`;
+  }
+  const links = [[0,1],[1,2],[2,3],[0,3],[1,3]];
+  links.forEach(([i,j])=>{
+    const a=nodePositions[i], b=nodePositions[j];
+    const crosses = capPartitioned && ((i<2 && j>=2) || (j<2 && i>=2));
+    const stroke = crosses ? 'var(--coral)' : 'var(--border)';
+    svg += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${stroke}" stroke-width="${crosses?2:2.5}" stroke-dasharray="${crosses?'4 5':'0'}"/>`;
+  });
+  nodePositions.forEach((n,i)=>{
+    let stroke='var(--border)', valColor='var(--muted)';
+    if(capMode==='ap'){ stroke = i<2 ? 'var(--coral)' : 'var(--violet)'; valColor = stroke; }
+    else if(capMode==='cp'){ stroke = i<2 ? 'var(--coral)' : 'var(--green)'; valColor = stroke; }
+    else if(capWritten){ stroke='var(--cyan)'; valColor='var(--cyan)'; }
+    svg += `<circle class="node-circle" cx="${n.x}" cy="${n.y}" r="36" fill="var(--panel-2)" stroke="${stroke}" stroke-width="3"/>`;
+    svg += `<text x="${n.x}" y="${n.y-6}" fill="var(--text)" font-size="10.5" text-anchor="middle" font-weight="600">${n.label}</text>`;
+    svg += `<text x="${n.x}" y="${n.y+15}" fill="${valColor}" font-size="15" font-weight="700" text-anchor="middle">${nodeValues[i]}</text>`;
+  });
+  svg += `<text x="450" y="255" fill="var(--muted)" font-size="11" text-anchor="middle">${capCaption()}</text>`;
+  svgCap.innerHTML = svg;
+
+  document.getElementById('capNet').textContent = capPartitioned ? 'Partitioned' : 'Healthy';
+  document.getElementById('capNet').style.color = capPartitioned ? 'var(--coral)' : 'var(--green)';
+  document.getElementById('capMode').textContent = capMode==='ap' ? 'Availability (AP)' : capMode==='cp' ? 'Consistency (CP)' : '—';
+  document.getElementById('capMode').style.color = capMode==='ap' ? 'var(--violet)' : capMode==='cp' ? 'var(--coral)' : 'var(--muted)';
+  let stateTxt='In sync', stateColor='var(--cyan)';
+  if(capMode==='ap'){ stateTxt='Diverged — partitions disagree'; stateColor='var(--coral)'; }
+  if(capMode==='cp'){ stateTxt='Minority side rejects requests'; stateColor='var(--green)'; }
+  document.getElementById('capState').textContent = stateTxt;
+  document.getElementById('capState').style.color = stateColor;
+}
+document.getElementById('writeBtn').addEventListener('click', ()=>{ capWritten=true; nodeValues=['42','42','42','42']; renderCap(); });
+document.getElementById('partitionBtn').addEventListener('click', ()=>{
+  if(!capWritten) return;
+  capPartitioned=true;
+  document.getElementById('apBtn').disabled=false;
+  document.getElementById('cpBtn').disabled=false;
+  renderCap();
+});
+document.getElementById('apBtn').addEventListener('click', ()=>{ capMode='ap'; nodeValues=['42','42','99','99']; renderCap(); });
+document.getElementById('cpBtn').addEventListener('click', ()=>{ capMode='cp'; nodeValues=['✕','✕','42','42']; renderCap(); });
+document.getElementById('resetCap').addEventListener('click', ()=>{
+  capWritten=false; capPartitioned=false; capMode=null; nodeValues=['—','—','—','—'];
+  document.getElementById('apBtn').disabled=true; document.getElementById('cpBtn').disabled=true;
+  renderCap();
+});
+renderCap();
+
+/* ================= REQUEST RACE ================= */
+const svgRace = document.getElementById('svgRace');
+function drawRaceBase(){
+  let svg='';
+  svg += `<circle cx="60" cy="130" r="24" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2"/>`;
+  svg += `<text x="60" y="134" fill="var(--muted)" font-size="9" text-anchor="middle">USER</text>`;
+
+  svg += `<rect x="300" y="40" width="180" height="80" rx="10" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2.5"/>`;
+  svg += `<text x="390" y="70" fill="var(--violet)" font-size="12" text-anchor="middle" font-weight="700">AP NODE</text>`;
+  svg += `<text x="390" y="92" fill="var(--muted)" font-size="9.5" text-anchor="middle">cut off from majority</text>`;
+  svg += `<text id="apResultTxt" x="390" y="110" fill="var(--muted)" font-size="10" text-anchor="middle"></text>`;
+
+  svg += `<rect x="300" y="150" width="180" height="80" rx="10" fill="var(--panel-2)" stroke="var(--coral)" stroke-width="2.5"/>`;
+  svg += `<text x="390" y="180" fill="var(--coral)" font-size="12" text-anchor="middle" font-weight="700">CP NODE</text>`;
+  svg += `<text x="390" y="202" fill="var(--muted)" font-size="9.5" text-anchor="middle">cut off from majority</text>`;
+  svg += `<text id="cpResultTxt" x="390" y="220" fill="var(--muted)" font-size="10" text-anchor="middle"></text>`;
+
+  svg += `<line x1="86" y1="130" x2="298" y2="80" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"/>`;
+  svg += `<line x1="86" y1="130" x2="298" y2="190" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"/>`;
+
+  svg += `<text x="600" y="90" fill="var(--violet)" font-size="12" font-weight="700">→ responds with last-known value</text>`;
+  svg += `<text x="600" y="200" fill="var(--coral)" font-size="12" font-weight="700">→ responds with an error / times out</text>`;
+  svgRace.innerHTML = svg;
+}
+drawRaceBase();
+document.getElementById('fireRequest').addEventListener('click', ()=>{
+  drawRaceBase();
+  const apDot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  apDot.setAttribute('cx','86'); apDot.setAttribute('cy','130'); apDot.setAttribute('r','7');
+  apDot.setAttribute('fill','var(--violet)'); apDot.classList.add('req-dot');
+  svgRace.appendChild(apDot);
+  const cpDot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  cpDot.setAttribute('cx','86'); cpDot.setAttribute('cy','130'); cpDot.setAttribute('r','7');
+  cpDot.setAttribute('fill','var(--coral)'); cpDot.classList.add('req-dot');
+  svgRace.appendChild(cpDot);
+
+  document.getElementById('raceAP').textContent = 'in flight…';
+  document.getElementById('raceCP').textContent = 'in flight…';
+  requestAnimationFrame(()=>{
+    apDot.style.transitionDuration='700ms'; apDot.setAttribute('cx','390'); apDot.setAttribute('cy','80');
+    cpDot.style.transitionDuration='700ms'; cpDot.setAttribute('cx','390'); cpDot.setAttribute('cy','190');
+  });
+  setTimeout(()=>{
+    document.getElementById('apResultTxt').textContent = '200 OK — value: "42" (stale)';
+    document.getElementById('raceAP').textContent = '200 OK (possibly stale)';
+    document.getElementById('raceAP').style.color = 'var(--violet)';
+  }, 750);
+  setTimeout(()=>{
+    document.getElementById('cpResultTxt').textContent = '503 Unavailable';
+    document.getElementById('raceCP').textContent = '503 Unavailable';
+    document.getElementById('raceCP').style.color = 'var(--coral)';
+  }, 900);
+});
+document.getElementById('resetRace').addEventListener('click', ()=>{
+  drawRaceBase();
+  document.getElementById('raceAP').textContent = 'waiting…'; document.getElementById('raceAP').style.color='var(--violet)';
+  document.getElementById('raceCP').textContent = 'waiting…'; document.getElementById('raceCP').style.color='var(--coral)';
+});
+
+/* ================= QUADRANT ================= */
+const svgQuad = document.getElementById('svgQuad');
+const quadPoints = [
+  {x:140,y:100,label:'DNS', color:'var(--violet)', title:'DNS — Availability', desc:'Always resolves, tolerates staleness via TTLs. An unreachable DNS server breaks the internet for its users, so it strongly favors AP.'},
+  {x:380,y:100,label:'DynamoDB / Cassandra', color:'var(--violet)', title:'DynamoDB / Cassandra — Availability', desc:'Built for AP by default: always accept writes/reads, resolve conflicts later (e.g. "last write wins" or version vectors). Great for shopping carts, session data, and activity feeds.'},
+  {x:140,y:300,label:'Traditional SQL (single-master)', color:'var(--coral)', title:'Traditional SQL — Consistency', desc:'A single-master relational database is strongly consistent by nature — replicas that fall behind are treated as not-yet-authoritative, and writes go through one source of truth.'},
+  {x:380,y:300,label:'ZooKeeper / etcd', color:'var(--coral)', title:'ZooKeeper / etcd — Consistency', desc:'Coordination services used for distributed locks and leader election deliberately favor CP — an incorrect "yes, you hold the lock" answer to two nodes at once is far worse than briefly refusing to answer.'},
+];
+function renderQuad(){
+  let svg='';
+  svg += `<line x1="60" y1="200" x2="460" y2="200" stroke="var(--border)" stroke-width="2"/>`;
+  svg += `<line x1="260" y1="20" x2="260" y2="380" stroke="var(--border)" stroke-width="2"/>`;
+  svg += `<text x="260" y="14" fill="var(--muted)" font-size="11" text-anchor="middle">FAVORS AVAILABILITY</text>`;
+  svg += `<text x="260" y="396" fill="var(--muted)" font-size="11" text-anchor="middle">FAVORS CONSISTENCY</text>`;
+  quadPoints.forEach((p,i)=>{
+    svg += `<circle class="quad-dot" data-idx="${i}" cx="${p.x}" cy="${p.y}" r="16" fill="${p.color}" opacity="1" stroke="#FFFFFF" stroke-width="2.5"/>`;
+    svg += `<text x="${p.x}" y="${p.y+34}" fill="var(--muted)" font-size="10" text-anchor="middle">${p.label}</text>`;
+  });
+  svgQuad.innerHTML = svg;
+  svgQuad.querySelectorAll('.quad-dot').forEach(dot=>{
+    dot.addEventListener('click', ()=>{
+      const p = quadPoints[dot.dataset.idx];
+      document.getElementById('quadDetail').innerHTML = `<h5 style="color:${p.color}">${p.title}</h5><p>${p.desc}</p>`;
+    });
+  });
+}
+renderQuad();
+
+/* ================= ACTIVITY SCORING ================= */
+function wireActivity(containerId, fillId, textId){
+  const container = document.getElementById(containerId);
+  const scenarios = container.querySelectorAll('.scenario');
+  let correctCount = 0;
+  scenarios.forEach(sc=>{
+    const answer = sc.dataset.answer;
+    const btns = sc.querySelectorAll('.choice-btn');
+    const explain = sc.querySelector('.explain');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.classList.contains('disabled')) return;
+        btns.forEach(x=>x.classList.add('disabled'));
+        if(b.dataset.val === answer){ b.classList.add('correct'); correctCount++; }
+        else { b.classList.add('wrong'); btns.forEach(x=>{ if(x.dataset.val===answer) x.classList.add('correct'); }); }
+        explain.classList.add('show');
+        const pct = Math.round(100*correctCount/scenarios.length);
+        document.getElementById(fillId).style.width = pct+'%';
+        document.getElementById(textId).textContent = correctCount+' / '+scenarios.length;
+      });
+    });
+  });
+}
+wireActivity('act1','scoreFill1','scoreText1');
+</script>
+</body>
+</html>

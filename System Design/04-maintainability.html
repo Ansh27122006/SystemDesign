@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maintainability — System Design Characteristics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220; --panel:#121B2E; --panel-2:#0F1729; --border:#22304A;
+    --amber:#F5A623; --teal:#2DD4BF; --red:#EF4444; --text:#E7ECF3; --muted:#8996AC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(245,166,35,0.08), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 110%, rgba(45,212,191,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; padding:32px 20px 80px;
+  }
+  .wrap{max-width:1040px;margin:0 auto;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:var(--teal);text-transform:uppercase;margin-bottom:10px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(32px,5vw,44px);margin:0 0 10px;letter-spacing:-0.02em;}
+  .sub{color:var(--muted);max-width:720px;line-height:1.55;font-size:15px;margin-bottom:26px;}
+  h2{font-family:'Space Grotesk',sans-serif;font-size:21px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  .section-num{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);border:1px solid var(--border);border-radius:5px;padding:2px 7px;}
+  .section-sub{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.55;max-width:720px;}
+  .section{margin-bottom:52px;}
+  hr.div{border:none;border-top:1px solid var(--border);margin:44px 0;}
+
+  .status-strip{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;margin-bottom:16px;flex-wrap:wrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+  .dot.pulse{animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,0.5);}50%{box-shadow:0 0 0 6px rgba(245,166,35,0);}}
+  .status-strip .label{color:var(--muted);}
+  .status-strip .val{color:var(--text);font-weight:600;}
+  .status-strip .sep{width:1px;height:14px;background:var(--border);}
+
+  .stage{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;overflow:hidden;}
+  .stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+
+  .controls{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:16px;}
+  select{font-family:'IBM Plex Mono',monospace;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;}
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px 15px;border-radius:8px;cursor:pointer;transition:border-color .2s,color .2s;}
+  button:hover:not(:disabled){border-color:var(--teal);color:var(--teal);}
+  button:disabled{opacity:0.4;cursor:not-allowed;}
+  button.primary{border-color:var(--amber);color:var(--amber);}
+  .switch-row{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--muted);}
+  .switch{width:42px;height:24px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:all .2s;}
+  .switch.on{background:rgba(245,166,35,0.15);border-color:var(--amber);}
+  .switch.on::after{left:20px;background:var(--amber);}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;}
+  .metric{background:var(--panel);padding:14px 16px;}
+  .metric .m-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .metric .m-val{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;}
+  .metric .m-val.accent{color:var(--amber);}
+  .metric .m-val.danger{color:var(--red);}
+  .metric .m-val.good{color:var(--teal);}
+
+  /* Scene A - graph */
+  .graph-stage{height:300px;}
+  .gnode{position:absolute;width:64px;height:64px;margin-left:-32px;margin-top:-32px;border-radius:12px;background:var(--panel-2);border:2px solid var(--teal);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text);transition:all .35s ease;z-index:2;}
+  .gnode .ic{font-size:18px;color:var(--teal);}
+  .gnode.hub{border-color:var(--muted);color:var(--muted);}
+  .gnode.hub .ic{color:var(--muted);}
+  .gnode.hub.faded{opacity:0.3;}
+  .gnode.hit{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,0.4);}
+  .gnode.hit .ic{color:var(--red);}
+  .gnode.warn{border-color:var(--amber);box-shadow:0 0 16px rgba(245,166,35,0.35);}
+  .gnode.warn .ic{color:var(--amber);}
+  .gnode.source{border-width:3px;}
+
+  /* Scene B - observability */
+  .obs-stage{min-height:180px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;}
+  .service-box{width:110px;height:90px;border-radius:12px;border:2px solid var(--teal);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text);flex-shrink:0;transition:all .3s;}
+  .service-box.broken{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,0.4);}
+  .service-box .ic{font-size:26px;margin-bottom:6px;}
+  .obs-panel{display:flex;gap:10px;flex-shrink:0;opacity:0.25;transition:opacity .3s;}
+  .obs-panel.active{opacity:1;}
+  .obs-chip{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .obs-chip .ic{font-size:16px;color:var(--teal);}
+  .obs-panel.active .obs-chip .ic{color:var(--amber);}
+  .alert-ping{display:none;color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:11px;align-items:center;gap:6px;}
+  .alert-ping.show{display:flex;}
+
+  .timeline{margin-top:14px;}
+  .tl-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);}
+  .tl-label{width:80px;flex-shrink:0;}
+  .tl-track{flex:1;height:16px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .tl-fill{height:100%;width:0%;background:var(--amber);transition:width linear;}
+  .tl-fill.detect{background:var(--red);}
+  .tl-fill.diagnose{background:var(--amber);}
+  .tl-fill.fix{background:var(--teal);}
+  .tl-time{width:56px;text-align:right;flex-shrink:0;}
+
+  .mini-compare{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+  .mc-row{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);}
+  .mc-label{width:130px;flex-shrink:0;}
+  .mc-track{flex:1;height:14px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .mc-fill{height:100%;transition:width .4s ease;}
+  .mc-val{width:56px;text-align:right;color:var(--text);}
+
+  .incident-log{margin-top:14px;max-height:110px;overflow-y:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:8px;}
+  .incident-log div{padding:3px 0;}
+
+  /* Scene C - pipelines */
+  .race-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  @media(max-width:760px){.race-grid{grid-template-columns:1fr;}}
+  .race-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .race-panel h3{font-family:'Space Grotesk',sans-serif;font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .race-panel h3 .sw{width:9px;height:9px;border-radius:50%;}
+  .pipe-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+  .pipe-step{flex:1;min-width:70px;padding:10px 6px;border-radius:8px;border:1.5px solid var(--border);background:var(--panel-2);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);transition:all .25s;}
+  .pipe-step.active{border-color:var(--teal);color:var(--teal);}
+  .pipe-step.caught{border-color:var(--amber);color:var(--amber);background:rgba(245,166,35,0.1);}
+  .pipe-step.broken{border-color:var(--red);color:var(--red);background:rgba(239,68,68,0.15);animation:blink .5s step-start infinite;}
+  @keyframes blink{50%{opacity:0.4;}}
+  .race-mini-metrics{display:flex;flex-direction:column;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);}
+  .race-mini-metrics b{color:var(--text);}
+
+  table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--border);}
+  td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .note{margin-top:8px;padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:8px;font-size:14px;line-height:1.6;color:var(--text);}
+  .note b{color:var(--teal);}
+  @media (prefers-reduced-motion: reduce){.dot.pulse{animation:none;} .pipe-step.broken{animation:none;opacity:0.6;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">System Design Characteristics · 04 / 07</div>
+  <h1>Maintainability</h1>
+  <p class="sub">How easily a system can be fixed, changed, and operated over its lifetime — not just built once. Three angles, three scenes: how far a change ripples, how fast you notice something's broken, and how safely you can ship.</p>
+
+  <!-- SCENE A: COUPLING -->
+  <div class="section">
+    <h2><span class="section-num">A</span> Coupling &amp; Blast Radius</h2>
+    <p class="section-sub">Pick a service and push a change to it. In a tightly coupled system sharing one database, watch how far the impact spreads. Flip to modular and the same change stays contained by service boundaries and contract tests.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="aDot"></span>
+      <span class="label">Mode&nbsp;</span><span class="val" id="aModeVal">Tightly coupled</span>
+      <span class="sep"></span>
+      <span class="label">Last change&nbsp;</span><span class="val" id="aLastVal">—</span>
+    </div>
+
+    <div class="stage graph-stage" id="aStage">
+      <svg id="aLines"></svg>
+    </div>
+
+    <div class="controls">
+      <select id="aTarget">
+        <option value="web">Web</option>
+        <option value="auth">Auth</option>
+        <option value="orders" selected>Orders</option>
+        <option value="inventory">Inventory</option>
+        <option value="payments">Payments</option>
+      </select>
+      <button id="aPushBtn" class="primary">Push change ▶</button>
+      <div class="switch-row">
+        <div class="switch on" id="aModeSwitch"></div>
+        <span>Tightly coupled (shared database)</span>
+      </div>
+      <button id="aResetBtn">Reset</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Services affected</div><div class="m-val danger" id="aAffectedVal">0</div></div>
+      <div class="metric"><div class="m-label">Blast radius</div><div class="m-val accent" id="aRadiusVal">0%</div></div>
+      <div class="metric"><div class="m-label">Est. redeploy time</div><div class="m-val" id="aRedeployVal">0 min</div></div>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE B: OBSERVABILITY -->
+  <div class="section">
+    <h2><span class="section-num">B</span> Observability &amp; Time to Restore</h2>
+    <p class="section-sub">A bug reaches production. How quickly you detect, diagnose, and fix it depends heavily on whether you built in logs, metrics, and alerts — or you're waiting for a user to complain.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="bDot"></span>
+      <span class="label">Observability&nbsp;</span><span class="val" id="bObsVal">OFF</span>
+      <span class="sep"></span>
+      <span class="label">Incidents run&nbsp;</span><span class="val" id="bIncidentCountVal">0</span>
+    </div>
+
+    <div class="stage obs-stage" id="bStage">
+      <div class="service-box" id="bServiceBox"><span class="ic">▣</span>checkout-service</div>
+      <div class="obs-panel" id="bObsPanel">
+        <div class="obs-chip"><span class="ic">▤</span>logs</div>
+        <div class="obs-chip"><span class="ic">▲</span>metrics</div>
+        <div class="obs-chip"><span class="ic">◉</span>alerts</div>
+      </div>
+      <div class="alert-ping" id="bAlertPing">🔔 Alert fired — on-call paged</div>
+    </div>
+
+    <div class="controls">
+      <button id="bIncidentBtn" class="primary">Trigger incident ⚠</button>
+      <div class="switch-row">
+        <div class="switch" id="bObsSwitch"></div>
+        <span>Observability stack enabled</span>
+      </div>
+      <button id="bResetBtn">Reset</button>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-row"><div class="tl-label">Detect</div><div class="tl-track"><div class="tl-fill detect" id="bDetectFill"></div></div><div class="tl-time" id="bDetectTime">—</div></div>
+      <div class="tl-row"><div class="tl-label">Diagnose</div><div class="tl-track"><div class="tl-fill diagnose" id="bDiagnoseFill"></div></div><div class="tl-time" id="bDiagnoseTime">—</div></div>
+      <div class="tl-row"><div class="tl-label">Fix</div><div class="tl-track"><div class="tl-fill fix" id="bFixFill"></div></div><div class="tl-time" id="bFixTime">—</div></div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">This incident MTTR</div><div class="m-val" id="bThisMttr">—</div></div>
+      <div class="metric"><div class="m-label">Avg MTTR — without</div><div class="m-val danger" id="bAvgWithout">—</div></div>
+      <div class="metric"><div class="m-label">Avg MTTR — with</div><div class="m-val good" id="bAvgWith">—</div></div>
+    </div>
+
+    <div class="mini-compare">
+      <div class="mc-row"><div class="mc-label">Without observability</div><div class="mc-track"><div class="mc-fill" id="bBarWithout" style="width:0%;background:var(--red);"></div></div><div class="mc-val" id="bBarWithoutVal">—</div></div>
+      <div class="mc-row"><div class="mc-label">With observability</div><div class="mc-track"><div class="mc-fill" id="bBarWith" style="width:0%;background:var(--teal);"></div></div><div class="mc-val" id="bBarWithVal">—</div></div>
+    </div>
+
+    <div class="incident-log" id="bLog"></div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE C: PIPELINE -->
+  <div class="section">
+    <h2><span class="section-num">C</span> Ship a Change: Manual vs. CI/CD</h2>
+    <p class="section-sub">Every "ship" below sends the same change through two different processes at once. Sometimes the change has a hidden bug — watch where each pipeline catches it, or doesn't.</p>
+
+    <div class="controls">
+      <button id="cShipBtn" class="primary">🚀 Ship a change</button>
+      <button id="cResetBtn">Reset stats</button>
+    </div>
+
+    <div class="race-grid">
+      <div class="race-panel">
+        <h3><span class="sw" style="background:var(--amber);"></span>Manual process</h3>
+        <div class="pipe-row" id="manualPipe">
+          <div class="pipe-step">Build</div>
+          <div class="pipe-step">Manual QA</div>
+          <div class="pipe-step">Manual Deploy</div>
+          <div class="pipe-step">Production</div>
+        </div>
+        <div class="race-mini-metrics">
+          <span>Deployments: <b id="mDeployCount">0</b></span>
+          <span>Avg lead time: <b id="mLeadTime">—</b></span>
+          <span>Change failure rate: <b id="mFailRate">—</b></span>
+          <span>Avg time to restore: <b id="mRestoreTime">—</b></span>
+        </div>
+      </div>
+      <div class="race-panel">
+        <h3><span class="sw" style="background:var(--teal);"></span>CI/CD pipeline</h3>
+        <div class="pipe-row" id="cicdPipe">
+          <div class="pipe-step">Commit</div>
+          <div class="pipe-step">Auto Tests</div>
+          <div class="pipe-step">Auto Deploy</div>
+          <div class="pipe-step">Canary</div>
+          <div class="pipe-step">Production</div>
+        </div>
+        <div class="race-mini-metrics">
+          <span>Deployments: <b id="cDeployCount">0</b></span>
+          <span>Avg lead time: <b id="cLeadTime">—</b></span>
+          <span>Change failure rate: <b id="cFailRate">—</b></span>
+          <span>Avg time to restore: <b id="cRestoreTime">—</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:8px;">These map to the four DORA metrics</h2>
+  <p class="section-sub">A widely used industry framework for measuring how maintainable an engineering system actually is in practice — not from opinion, but from what the pipeline above produces.</p>
+  <table>
+    <thead><tr><th>DORA metric</th><th>What it means</th><th>What you just saw</th></tr></thead>
+    <tbody>
+      <tr><td>Deployment frequency</td><td>How often changes reach production</td><td>Each "Ship a change" click</td></tr>
+      <tr><td>Lead time for changes</td><td>Time from commit to running in production</td><td>The "Avg lead time" stat per pipeline</td></tr>
+      <tr><td>Change failure rate</td><td>% of deployments that cause a production failure</td><td>Bugs that slipped past QA/tests/canary</td></tr>
+      <tr><td>Time to restore service</td><td>How long a failure takes to fix once it happens</td><td>The rollback phase and "time to restore" stat</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>The throughline:</b> maintainability isn't one thing — it's small blast radius (Scene A) plus fast detection (Scene B) plus safe, frequent shipping (Scene C). Systems that score well on all three are the ones teams can change confidently for years, instead of becoming too risky to touch.
+  </div>
+</div>
+
+<script>
+/* ============ SHARED HELPERS ============ */
+function drawDashedLine(svg, x1,y1,x2,y2,color,opacity){
+  const ns='http://www.w3.org/2000/svg';
+  const l=document.createElementNS(ns,'line');
+  l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+  l.setAttribute('stroke',color);l.setAttribute('stroke-width','1.5');
+  l.setAttribute('stroke-dasharray','4 4');l.setAttribute('opacity',opacity||'0.35');
+  svg.appendChild(l);
+}
+
+/* ============ SCENE A: COUPLING ============ */
+(function(){
+  const stage = document.getElementById('aStage');
+  const linesSvg = document.getElementById('aLines');
+  const services = ['web','auth','orders','inventory','payments'];
+  const labels = {web:'Web', auth:'Auth', orders:'Orders', inventory:'Inventory', payments:'Payments', hub:'Shared DB'};
+  let modular = false;
+  const nodeEls = {};
+
+  const coupledEdges = [['hub','web'],['hub','auth'],['hub','orders'],['hub','inventory'],['hub','payments']];
+  const modularEdges = [['web','auth'],['web','orders'],['orders','payments'],['orders','inventory']];
+
+  function positions(w,h){
+    return {
+      hub: {x:w*0.5, y:h*0.5},
+      web: {x:w*0.5, y:h*0.14},
+      auth: {x:w*0.84, y:h*0.32},
+      orders: {x:w*0.84, y:h*0.75},
+      inventory: {x:w*0.5, y:h*0.92},
+      payments: {x:w*0.16, y:h*0.68},
+    };
+  }
+
+  function build(){
+    stage.querySelectorAll('.gnode').forEach(n=>n.remove());
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const pos = positions(w,h);
+    Object.keys(pos).forEach(key=>{
+      const el = document.createElement('div');
+      el.className = 'gnode' + (key==='hub' ? ' hub' : '');
+      el.style.left = pos[key].x+'px';
+      el.style.top = pos[key].y+'px';
+      el.innerHTML = `<span class="ic">${key==='hub'?'▤':'▣'}</span>${labels[key]}`;
+      stage.appendChild(el);
+      nodeEls[key] = el;
+    });
+    drawLines(pos);
+  }
+
+  function drawLines(pos){
+    linesSvg.innerHTML='';
+    const edges = modular ? modularEdges : coupledEdges;
+    edges.forEach(([a,b])=>{
+      drawDashedLine(linesSvg, pos[a].x, pos[a].y, pos[b].x, pos[b].y, modular ? '#2DD4BF' : '#8996AC', modular?0.3:0.4);
+    });
+    nodeEls.hub.classList.toggle('faded', modular);
+  }
+
+  function adjacency(){
+    const edges = modular ? modularEdges : coupledEdges;
+    const adj = {};
+    [...services,'hub'].forEach(s=>adj[s]=[]);
+    edges.forEach(([a,b])=>{ adj[a].push(b); adj[b].push(a); });
+    return adj;
+  }
+
+  function pushChange(target){
+    Object.values(nodeEls).forEach(el=>el.classList.remove('hit','warn','source'));
+    const adj = adjacency();
+    let affected = [];
+    if(modular){
+      // contained: only direct neighbors flagged (amber), depth capped at 1, hub unused
+      affected = adj[target].slice();
+    } else {
+      // full BFS - unlimited depth
+      const visited = new Set([target]);
+      const queue = [target];
+      while(queue.length){
+        const cur = queue.shift();
+        (adj[cur]||[]).forEach(n=>{
+          if(!visited.has(n)){ visited.add(n); queue.push(n); affected.push(n); }
+        });
+      }
+      // dedupe
+      affected = [...new Set(affected)];
+    }
+    nodeEls[target].classList.add('source', modular ? 'warn' : 'hit');
+    let i=0;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const delay = reduceMotion ? 0 : 180;
+    function step(){
+      if(i>=affected.length) return;
+      nodeEls[affected[i]].classList.add(modular ? 'warn' : 'hit');
+      i++;
+      setTimeout(step, delay);
+    }
+    step();
+
+    const totalNodes = services.length + 1;
+    const affectedCount = affected.length + 1; // include source
+    document.getElementById('aAffectedVal').textContent = affectedCount;
+    document.getElementById('aRadiusVal').textContent = Math.round((affectedCount/totalNodes)*100)+'%';
+    document.getElementById('aRedeployVal').textContent = (affectedCount*20)+' min';
+    document.getElementById('aLastVal').textContent = labels[target];
+  }
+
+  document.getElementById('aPushBtn').addEventListener('click', ()=>{
+    pushChange(document.getElementById('aTarget').value);
+  });
+  document.getElementById('aModeSwitch').addEventListener('click', function(){
+    modular = !modular;
+    this.classList.toggle('on', !modular);
+    document.getElementById('aModeVal').textContent = modular ? 'Modular / service boundaries' : 'Tightly coupled';
+    build();
+  });
+  document.getElementById('aResetBtn').addEventListener('click', ()=>{
+    build();
+    document.getElementById('aAffectedVal').textContent='0';
+    document.getElementById('aRadiusVal').textContent='0%';
+    document.getElementById('aRedeployVal').textContent='0 min';
+    document.getElementById('aLastVal').textContent='—';
+  });
+
+  document.getElementById('aModeSwitch').classList.add('on');
+  build();
+  window.addEventListener('resize', build);
+})();
+
+/* ============ SCENE B: OBSERVABILITY ============ */
+(function(){
+  let obsOn = false;
+  let running = false;
+  const history = {withObs:[], withoutObs:[]};
+  let incidentIdx = 0;
+
+  document.getElementById('bObsSwitch').addEventListener('click', function(){
+    obsOn = !obsOn;
+    this.classList.toggle('on', obsOn);
+    document.getElementById('bObsVal').textContent = obsOn ? 'ON' : 'OFF';
+    document.getElementById('bObsPanel').classList.toggle('active', obsOn);
+  });
+
+  function setFill(id, timeId, ms, colorClass){
+    const fillEl = document.getElementById(id);
+    const timeEl = document.getElementById(timeId);
+    return new Promise(resolve=>{
+      fillEl.style.transition = 'none';
+      fillEl.style.width = '0%';
+      void fillEl.offsetWidth;
+      fillEl.style.transition = `width ${ms}ms linear`;
+      requestAnimationFrame(()=>{ fillEl.style.width='100%'; });
+      setTimeout(()=>{
+        timeEl.textContent = (ms/1000).toFixed(1)+'s';
+        resolve();
+      }, ms);
+    });
+  }
+
+  async function runIncident(){
+    if(running) return;
+    running = true;
+    document.getElementById('bIncidentBtn').disabled = true;
+    document.getElementById('bServiceBox').classList.add('broken');
+    document.getElementById('bDetectTime').textContent='—';
+    document.getElementById('bDiagnoseTime').textContent='—';
+    document.getElementById('bFixTime').textContent='—';
+
+    const alertPing = document.getElementById('bAlertPing');
+    alertPing.classList.toggle('show', obsOn);
+
+    const detectMs = obsOn ? 500 : 2600;
+    const diagnoseMs = obsOn ? 900 : 2200;
+    const fixMs = obsOn ? 1100 : 1600;
+
+    await setFill('bDetectFill','bDetectTime', detectMs);
+    await setFill('bDiagnoseFill','bDiagnoseTime', diagnoseMs);
+    await setFill('bFixFill','bFixTime', fixMs);
+
+    document.getElementById('bServiceBox').classList.remove('broken');
+    alertPing.classList.remove('show');
+
+    const totalS = (detectMs+diagnoseMs+fixMs)/1000;
+    document.getElementById('bThisMttr').textContent = totalS.toFixed(1)+'s';
+
+    incidentIdx++;
+    document.getElementById('bIncidentCountVal').textContent = incidentIdx;
+    if(obsOn){ history.withObs.push(totalS); } else { history.withoutObs.push(totalS); }
+
+    const avg = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length) : null;
+    const avgWith = avg(history.withObs);
+    const avgWithout = avg(history.withoutObs);
+    document.getElementById('bAvgWith').textContent = avgWith!==null ? avgWith.toFixed(1)+'s' : '—';
+    document.getElementById('bAvgWithout').textContent = avgWithout!==null ? avgWithout.toFixed(1)+'s' : '—';
+
+    const maxScale = Math.max(avgWith||0, avgWithout||0, 6);
+    document.getElementById('bBarWith').style.width = avgWith!==null ? Math.min(100,(avgWith/maxScale)*100)+'%' : '0%';
+    document.getElementById('bBarWithout').style.width = avgWithout!==null ? Math.min(100,(avgWithout/maxScale)*100)+'%' : '0%';
+    document.getElementById('bBarWithVal').textContent = avgWith!==null ? avgWith.toFixed(1)+'s' : '—';
+    document.getElementById('bBarWithoutVal').textContent = avgWithout!==null ? avgWithout.toFixed(1)+'s' : '—';
+
+    const log = document.getElementById('bLog');
+    const entry = document.createElement('div');
+    entry.textContent = `#${incidentIdx} · ${obsOn?'with':'without'} observability · MTTR ${totalS.toFixed(1)}s`;
+    log.prepend(entry);
+
+    running = false;
+    document.getElementById('bIncidentBtn').disabled = false;
+  }
+
+  document.getElementById('bIncidentBtn').addEventListener('click', runIncident);
+  document.getElementById('bResetBtn').addEventListener('click', ()=>{
+    history.withObs=[]; history.withoutObs=[]; incidentIdx=0;
+    document.getElementById('bIncidentCountVal').textContent='0';
+    document.getElementById('bThisMttr').textContent='—';
+    document.getElementById('bAvgWith').textContent='—';
+    document.getElementById('bAvgWithout').textContent='—';
+    document.getElementById('bBarWith').style.width='0%';
+    document.getElementById('bBarWithout').style.width='0%';
+    document.getElementById('bBarWithVal').textContent='—';
+    document.getElementById('bBarWithoutVal').textContent='—';
+    document.getElementById('bLog').innerHTML='';
+    ['bDetectFill','bDiagnoseFill','bFixFill'].forEach(id=>document.getElementById(id).style.width='0%');
+    ['bDetectTime','bDiagnoseTime','bFixTime'].forEach(id=>document.getElementById(id).textContent='—');
+  });
+})();
+
+/* ============ SCENE C: PIPELINE RACE ============ */
+(function(){
+  const SCALE = 70; // ms per simulated minute
+  const manualSteps = [{name:'Build',dur:5},{name:'Manual QA',dur:30},{name:'Manual Deploy',dur:15},{name:'Production',dur:0}];
+  const cicdSteps = [{name:'Commit',dur:1},{name:'Automated Tests',dur:4},{name:'Automated Deploy',dur:2},{name:'Canary',dur:3},{name:'Production',dur:0}];
+  const manualCatch = {1:0.5};
+  const cicdCatch = {1:0.8, 3:0.85};
+  const manualRollbackMin = 140;
+  const cicdRollbackMin = 10;
+
+  const mStats = {deploys:0, leadTimes:[], failures:0, restores:[]};
+  const cStats = {deploys:0, leadTimes:[], failures:0, restores:[]};
+
+  function runPipeline(containerId, steps, catchMap, rollbackMin, hasBug, onDone){
+    const container = document.getElementById(containerId);
+    const stepEls = container.querySelectorAll('.pipe-step');
+    stepEls.forEach(el=>el.className='pipe-step');
+    let cumulative = 0;
+    let bugAlive = hasBug;
+
+    steps.forEach((s,i)=>{
+      cumulative += s.dur;
+      setTimeout(()=>{
+        stepEls[i].classList.add('active');
+        if(bugAlive && catchMap[i] !== undefined){
+          if(Math.random() < catchMap[i]){
+            bugAlive = false;
+            stepEls[i].classList.add('caught');
+          }
+        }
+        if(i===steps.length-1){
+          if(bugAlive){
+            stepEls[i].classList.add('broken');
+            setTimeout(()=>{
+              stepEls[i].classList.remove('broken');
+              stepEls[i].classList.add('active');
+              onDone({leadTime:cumulative, failed:true, restoreTime:rollbackMin});
+            }, rollbackMin*SCALE);
+          } else {
+            onDone({leadTime:cumulative, failed:false, restoreTime:0});
+          }
+        }
+      }, cumulative*SCALE);
+    });
+  }
+
+  function fmtAvg(arr, unit){
+    if(!arr.length) return '—';
+    const avg = arr.reduce((a,b)=>a+b,0)/arr.length;
+    return Math.round(avg)+unit;
+  }
+
+  function updateStatsUI(){
+    document.getElementById('mDeployCount').textContent = mStats.deploys;
+    document.getElementById('mLeadTime').textContent = fmtAvg(mStats.leadTimes,' min');
+    document.getElementById('mFailRate').textContent = mStats.deploys ? Math.round(mStats.failures/mStats.deploys*100)+'%' : '—';
+    document.getElementById('mRestoreTime').textContent = fmtAvg(mStats.restores,' min');
+
+    document.getElementById('cDeployCount').textContent = cStats.deploys;
+    document.getElementById('cLeadTime').textContent = fmtAvg(cStats.leadTimes,' min');
+    document.getElementById('cFailRate').textContent = cStats.deploys ? Math.round(cStats.failures/cStats.deploys*100)+'%' : '—';
+    document.getElementById('cRestoreTime').textContent = fmtAvg(cStats.restores,' min');
+  }
+
+  let shipping = false;
+  document.getElementById('cShipBtn').addEventListener('click', ()=>{
+    if(shipping) return;
+    shipping = true;
+    document.getElementById('cShipBtn').disabled = true;
+    const hasBug = Math.random() < 0.4;
+
+    let doneCount = 0;
+    function finish(){
+      doneCount++;
+      if(doneCount>=2){
+        shipping = false;
+        document.getElementById('cShipBtn').disabled = false;
+      }
+    }
+
+    runPipeline('manualPipe', manualSteps, manualCatch, manualRollbackMin, hasBug, (res)=>{
+      mStats.deploys++;
+      mStats.leadTimes.push(res.leadTime);
+      if(res.failed){ mStats.failures++; mStats.restores.push(res.restoreTime); }
+      updateStatsUI();
+      finish();
+    });
+    runPipeline('cicdPipe', cicdSteps, cicdCatch, cicdRollbackMin, hasBug, (res)=>{
+      cStats.deploys++;
+      cStats.leadTimes.push(res.leadTime);
+      if(res.failed){ cStats.failures++; cStats.restores.push(res.restoreTime); }
+      updateStatsUI();
+      finish();
+    });
+  });
+
+  document.getElementById('cResetBtn').addEventListener('click', ()=>{
+    mStats.deploys=0; mStats.leadTimes=[]; mStats.failures=0; mStats.restores=[];
+    cStats.deploys=0; cStats.leadTimes=[]; cStats.failures=0; cStats.restores=[];
+    updateStatsUI();
+    document.querySelectorAll('#manualPipe .pipe-step, #cicdPipe .pipe-step').forEach(el=>{
+      el.className = 'pipe-step';
+    });
+  });
+
+  updateStatsUI();
+})();
+</script>
+</body>
+</html>

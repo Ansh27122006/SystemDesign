@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fault Tolerance — System Design Characteristics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220; --panel:#121B2E; --panel-2:#0F1729; --border:#22304A;
+    --amber:#F5A623; --teal:#2DD4BF; --red:#EF4444; --text:#E7ECF3; --muted:#8996AC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(245,166,35,0.08), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 110%, rgba(45,212,191,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; padding:32px 20px 80px;
+  }
+  .wrap{max-width:1040px;margin:0 auto;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:var(--teal);text-transform:uppercase;margin-bottom:10px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(32px,5vw,44px);margin:0 0 10px;letter-spacing:-0.02em;}
+  .sub{color:var(--muted);max-width:720px;line-height:1.55;font-size:15px;margin-bottom:26px;}
+  h2{font-family:'Space Grotesk',sans-serif;font-size:21px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  .section-num{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);border:1px solid var(--border);border-radius:5px;padding:2px 7px;}
+  .section-sub{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.55;max-width:720px;}
+  .section{margin-bottom:52px;}
+  hr.div{border:none;border-top:1px solid var(--border);margin:44px 0;}
+
+  .status-strip{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;margin-bottom:16px;flex-wrap:wrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+  .dot.pulse{animation:pulse 1.6s ease-in-out infinite;}
+  .dot.bad{background:var(--red);}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,0.5);}50%{box-shadow:0 0 0 6px rgba(245,166,35,0);}}
+  .status-strip .label{color:var(--muted);}
+  .status-strip .val{color:var(--text);font-weight:600;}
+  .status-strip .sep{width:1px;height:14px;background:var(--border);}
+
+  .stage{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;overflow:hidden;}
+  .stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+
+  .controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px 15px;border-radius:8px;cursor:pointer;transition:border-color .2s,color .2s;}
+  button:hover:not(:disabled){border-color:var(--teal);color:var(--teal);}
+  button:disabled{opacity:0.4;cursor:not-allowed;}
+  button.primary{border-color:var(--amber);color:var(--amber);}
+  button.danger{border-color:var(--red);color:var(--red);}
+  .switch-row{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--muted);}
+  .switch{width:42px;height:24px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:all .2s;}
+  .switch.on{background:rgba(245,166,35,0.15);border-color:var(--amber);}
+  .switch.on::after{left:20px;background:var(--amber);}
+  .slider-row{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--muted);}
+  input[type=range]{width:150px;accent-color:var(--amber);}
+  .slider-val{font-family:'IBM Plex Mono',monospace;color:var(--text);min-width:34px;}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;}
+  .metric{background:var(--panel);padding:14px 16px;}
+  .metric .m-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .metric .m-val{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;}
+  .metric .m-val.accent{color:var(--amber);}
+  .metric .m-val.danger{color:var(--red);}
+  .metric .m-val.good{color:var(--teal);}
+
+  .banner{padding:12px 16px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:13px;margin-bottom:14px;border:1px solid var(--border);display:none;}
+  .banner.show{display:block;}
+  .banner.good{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,0.06);}
+  .banner.bad{border-color:var(--red);color:var(--red);background:rgba(239,68,68,0.08);}
+
+  /* Scene A */
+  .fstage{height:240px;}
+  .fnode{position:absolute;width:110px;height:80px;margin-left:-55px;margin-top:-40px;border-radius:12px;background:var(--panel-2);border:2px solid var(--teal);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text);transition:all .3s ease;z-index:2;}
+  .fnode .crown{font-size:16px;color:var(--amber);height:18px;opacity:0;transition:opacity .2s;}
+  .fnode.isprimary .crown{opacity:1;}
+  .fnode.offline{border-color:var(--red);background:rgba(239,68,68,0.08);color:var(--red);opacity:0.6;}
+  .fnode.standby-role{border-color:var(--muted);color:var(--muted);}
+  .fnode .role-label{font-size:9.5px;color:var(--muted);margin-top:2px;}
+  .hb{position:absolute;width:5px;height:5px;border-radius:50%;background:var(--teal);z-index:1;pointer-events:none;box-shadow:0 0 6px rgba(45,212,191,0.8);}
+
+  /* Scene B */
+  .bkstage{height:190px;}
+  .bknode{position:absolute;width:100px;height:76px;margin-left:-50px;margin-top:-38px;border-radius:12px;background:var(--panel-2);border:2px solid var(--teal);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text);z-index:2;}
+  .breaker-light{position:absolute;width:70px;height:70px;margin-left:-35px;margin-top:-35px;border-radius:50%;border:3px solid var(--border);display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:'IBM Plex Mono',monospace;font-size:10px;z-index:2;background:var(--panel-2);transition:all .3s;}
+  .breaker-light.closed{border-color:var(--teal);color:var(--teal);}
+  .breaker-light.open{border-color:var(--red);color:var(--red);box-shadow:0 0 16px rgba(239,68,68,0.35);}
+  .breaker-light.half{border-color:var(--amber);color:var(--amber);}
+  .bkpacket{position:absolute;width:6px;height:6px;border-radius:50%;z-index:1;pointer-events:none;}
+
+  /* Scene C */
+  .feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;}
+  @media(max-width:680px){.feature-grid{grid-template-columns:repeat(2,1fr);}}
+  .fcard{background:var(--panel-2);border:2px solid var(--teal);border-radius:12px;padding:14px 10px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text);transition:all .3s;}
+  .fcard .ic{font-size:22px;margin-bottom:6px;display:block;}
+  .fcard.broken{border-color:var(--red);color:var(--red);background:rgba(239,68,68,0.08);}
+  .fcard .pool-track{height:8px;background:var(--panel);border:1px solid var(--border);border-radius:4px;margin-top:8px;overflow:hidden;}
+  .fcard .pool-fill{height:100%;background:var(--teal);width:0%;transition:width .3s;}
+  .fcard.broken .pool-fill{background:var(--red);}
+  .pool-shared-wrap{margin-bottom:16px;}
+  .pool-shared-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:6px;}
+  .pool-shared-track{height:18px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .pool-shared-fill{height:100%;background:var(--teal);width:0%;transition:width .3s;}
+  .pool-shared-fill.danger{background:var(--red);}
+
+  table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--border);}
+  td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .note{margin-top:8px;padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:8px;font-size:14px;line-height:1.6;color:var(--text);}
+  .note b{color:var(--teal);}
+  @media (prefers-reduced-motion: reduce){.dot.pulse{animation:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">System Design Characteristics · 06 / 07</div>
+  <h1>Fault Tolerance</h1>
+  <p class="sub">The ability to keep working — fully or partially — when a component fails, rather than failing completely. Three patterns that show up in almost every real architecture: automatic failover, circuit breakers, and bulkhead isolation.</p>
+
+  <!-- SCENE A -->
+  <div class="section">
+    <h2><span class="section-num">A</span> Automatic Failover &amp; Split-Brain</h2>
+    <p class="section-sub">A standby node watches the primary's heartbeat. Miss enough beats and it promotes itself. That's great — until the old primary comes back not knowing it was replaced, and you end up with two nodes both convinced they're in charge.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="fDot"></span>
+      <span class="label">Missed heartbeats&nbsp;</span><span class="val" id="fMissedVal">0</span>
+      <span class="sep"></span>
+      <span class="label">Failover time&nbsp;</span><span class="val" id="fFailoverVal">—</span>
+    </div>
+
+    <div class="stage fstage" id="fStage">
+      <svg id="fLines"></svg>
+    </div>
+
+    <div class="banner" id="fBanner"></div>
+
+    <div class="controls">
+      <button id="fKillBtn" class="danger">Kill primary ⚠</button>
+      <button id="fReviveBtn" disabled>Revive old primary ▶</button>
+      <div class="switch-row">
+        <div class="switch on" id="fFenceSwitch"></div>
+        <span>Fencing enabled (checks generation before rejoining)</span>
+      </div>
+      <button id="fResetBtn">Reset</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Current primary</div><div class="m-val" id="fCurrentVal">Node A</div></div>
+      <div class="metric"><div class="m-label">Split-brain incidents</div><div class="m-val danger" id="fSplitVal">0</div></div>
+      <div class="metric"><div class="m-label">Successful promotions</div><div class="m-val good" id="fPromotionsVal">0</div></div>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE B -->
+  <div class="section">
+    <h2><span class="section-num">B</span> Circuit Breakers — Fail Fast Instead of Hanging</h2>
+    <p class="section-sub">Make Service B unhealthy and watch what happens to Service A's callers. Without a breaker, every request still waits the full timeout on a call that's doomed anyway. With one, repeated failures trip the breaker open and further calls fail instantly — protecting A from B's problems.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="bkDot"></span>
+      <span class="label">Breaker state&nbsp;</span><span class="val" id="bkStateVal">CLOSED</span>
+      <span class="sep"></span>
+      <span class="label">Consecutive failures&nbsp;</span><span class="val" id="bkConsecVal">0 / 3</span>
+    </div>
+
+    <div class="stage bkstage" id="bkStage">
+      <svg id="bkLines"></svg>
+    </div>
+
+    <div class="controls">
+      <div class="slider-row">
+        <span>Service B failure rate</span>
+        <input type="range" id="bkFail" min="0" max="100" value="60">
+        <span class="slider-val" id="bkFailVal">60%</span>
+      </div>
+      <div class="switch-row">
+        <div class="switch on" id="bkEnableSwitch"></div>
+        <span>Circuit breaker enabled</span>
+      </div>
+      <button id="bkResetBtn">Reset</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Avg request latency</div><div class="m-val" id="bkLatencyVal">—</div></div>
+      <div class="metric"><div class="m-label">Requests short-circuited</div><div class="m-val good" id="bkShortVal">0</div></div>
+      <div class="metric"><div class="m-label">Requests failed (real)</div><div class="m-val danger" id="bkFailedVal">0</div></div>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE C -->
+  <div class="section">
+    <h2><span class="section-num">C</span> Bulkhead Isolation — Contain the Damage</h2>
+    <p class="section-sub">Four features share a backend. Overload the Recommendations service and see what it takes down with it — everything, if they all share one resource pool; just itself, if each has its own.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="ckDot"></span>
+      <span class="label">Outage scope&nbsp;</span><span class="val" id="ckScopeVal">None</span>
+      <span class="sep"></span>
+      <span class="label">Features working&nbsp;</span><span class="val" id="ckWorkingVal">4 / 4</span>
+    </div>
+
+    <div class="pool-shared-wrap" id="ckSharedWrap">
+      <div class="pool-shared-label">Shared thread pool usage</div>
+      <div class="pool-shared-track"><div class="pool-shared-fill" id="ckSharedFill"></div></div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="fcard" id="ckSearch"><span class="ic">🔍</span>Search<div class="pool-track"><div class="pool-fill" id="ckSearchFill"></div></div></div>
+      <div class="fcard" id="ckRecs"><span class="ic">✨</span>Recommendations<div class="pool-track"><div class="pool-fill" id="ckRecsFill"></div></div></div>
+      <div class="fcard" id="ckReviews"><span class="ic">★</span>Reviews<div class="pool-track"><div class="pool-fill" id="ckReviewsFill"></div></div></div>
+      <div class="fcard" id="ckCheckout"><span class="ic">🛒</span>Checkout<div class="pool-track"><div class="pool-fill" id="ckCheckoutFill"></div></div></div>
+    </div>
+
+    <div class="controls">
+      <button id="ckOverloadBtn" class="danger">Overload Recommendations ⚠</button>
+      <button id="ckStopBtn">Stop overload</button>
+      <div class="switch-row">
+        <div class="switch" id="ckBulkheadSwitch"></div>
+        <span>Bulkhead isolation enabled (separate pools per feature)</span>
+      </div>
+      <button id="ckResetBtn">Reset</button>
+    </div>
+  </div>
+
+  <h2 style="margin-top:8px;">Three patterns, one goal</h2>
+  <table>
+    <thead><tr><th>Pattern</th><th>Protects against</th><th>Trade-off</th></tr></thead>
+    <tbody>
+      <tr><td>Automatic failover</td><td>Total loss of a single node</td><td>Needs careful fencing, or risks split-brain</td></tr>
+      <tr><td>Circuit breaker</td><td>Cascading slowdown from a failing dependency</td><td>Fails fast even for requests that might have succeeded</td></tr>
+      <tr><td>Bulkhead isolation</td><td>One overloaded component starving all the others</td><td>Costs more resources — capacity can't be shared across features</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>The common thread:</b> fault tolerance never prevents failures — it limits their blast radius and their duration. Every pattern here trades some efficiency (idle standby capacity, fast-failed requests, dedicated-but-sometimes-idle pools) for a system that degrades instead of collapsing.
+  </div>
+</div>
+
+<script>
+/* ============ SHARED HELPERS ============ */
+function drawDashedLine(svg, x1,y1,x2,y2,color,opacity){
+  const ns='http://www.w3.org/2000/svg';
+  const l=document.createElementNS(ns,'line');
+  l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+  l.setAttribute('stroke',color);l.setAttribute('stroke-width','1.5');
+  l.setAttribute('stroke-dasharray','4 4');l.setAttribute('opacity',opacity||'0.35');
+  svg.appendChild(l);
+}
+
+/* ============ SCENE A: FAILOVER ============ */
+(function(){
+  const stage = document.getElementById('fStage');
+  const lines = document.getElementById('fLines');
+  let primaryAlive = true;
+  let currentPrimary = 'A'; // 'A' or 'B'
+  let missed = 0;
+  let watchdog = null;
+  let killTime = null;
+  let fencing = true;
+  let splitBrainActive = false;
+  let promotions = 0;
+  let splitBrainCount = 0;
+  const nodeEls = {};
+
+  function positions(w,h){
+    return { client:{x:50,y:h/2}, A:{x:w*0.55,y:h*0.28}, B:{x:w*0.55,y:h*0.72} };
+  }
+
+  function build(){
+    stage.querySelectorAll('.fnode').forEach(n=>n.remove());
+    const w=stage.clientWidth, h=stage.clientHeight;
+    const pos = positions(w,h);
+    const client = document.createElement('div');
+    client.className='fnode'; client.style.borderColor='#8996AC'; client.style.color='#8996AC';
+    client.style.left=pos.client.x+'px'; client.style.top=pos.client.y+'px';
+    client.innerHTML = '<div>◆</div><div class="role-label">client</div>';
+    stage.appendChild(client);
+
+    ['A','B'].forEach(key=>{
+      const el = document.createElement('div');
+      el.className = 'fnode';
+      el.style.left = pos[key].x+'px'; el.style.top = pos[key].y+'px';
+      el.innerHTML = `<div class="crown">♛</div><div>Node ${key}</div><div class="role-label"></div>`;
+      stage.appendChild(el);
+      nodeEls[key] = el;
+    });
+    render();
+    drawLines(pos);
+  }
+
+  function drawLines(pos){
+    lines.innerHTML='';
+    drawDashedLine(lines, pos.client.x, pos.client.y, pos.A.x, pos.A.y, '#8996AC');
+    drawDashedLine(lines, pos.A.x, pos.A.y, pos.B.x, pos.B.y, '#2DD4BF', 0.3);
+  }
+
+  function render(){
+    ['A','B'].forEach(key=>{
+      const el = nodeEls[key];
+      const alive = key==='A' ? primaryAlive : true;
+      el.classList.toggle('offline', key==='A' && !primaryAlive && !splitBrainActive);
+      const isPrimaryNow = splitBrainActive ? true : (currentPrimary===key);
+      el.classList.toggle('isprimary', key==='A' ? (splitBrainActive || (currentPrimary==='A' && primaryAlive)) : (splitBrainActive || currentPrimary==='B'));
+      const label = el.querySelector('.role-label');
+      if(key==='A' && !primaryAlive && !splitBrainActive){ label.textContent='OFFLINE'; }
+      else if(splitBrainActive){ label.textContent='PRIMARY (conflict!)'; }
+      else if(currentPrimary===key){ label.textContent='PRIMARY'; }
+      else { label.textContent='standby'; }
+    });
+    document.getElementById('fCurrentVal').textContent = splitBrainActive ? 'A & B (!!)' : ('Node '+currentPrimary);
+  }
+
+  function sendHeartbeat(){
+    if(!primaryAlive || splitBrainActive) return;
+    const w=stage.clientWidth,h=stage.clientHeight;
+    const pos = positions(w,h);
+    const from = currentPrimary==='A'?pos.A:pos.B;
+    const to = currentPrimary==='A'?pos.B:pos.A;
+    const hb = document.createElement('div');
+    hb.className='hb';
+    stage.appendChild(hb);
+    hb.style.left=(from.x-2)+'px'; hb.style.top=(from.y-2)+'px';
+    hb.style.transition='left .4s linear, top .4s linear';
+    requestAnimationFrame(()=>{ hb.style.left=(to.x-2)+'px'; hb.style.top=(to.y-2)+'px'; });
+    setTimeout(()=>hb.remove(),450);
+  }
+
+  function watchdogTick(){
+    if(currentPrimary==='A' && !primaryAlive){
+      missed++;
+      document.getElementById('fMissedVal').textContent = missed;
+      if(missed>=3){
+        // promote B
+        currentPrimary='B';
+        promotions++;
+        document.getElementById('fPromotionsVal').textContent = promotions;
+        const failoverMs = performance.now()-killTime;
+        document.getElementById('fFailoverVal').textContent = (failoverMs/1000).toFixed(1)+'s';
+        render();
+      }
+    } else if(primaryAlive){
+      sendHeartbeat();
+    }
+  }
+
+  function killPrimary(){
+    if(!primaryAlive) return;
+    primaryAlive = false;
+    missed = 0;
+    killTime = performance.now();
+    document.getElementById('fMissedVal').textContent='0';
+    document.getElementById('fFailoverVal').textContent='—';
+    document.getElementById('fKillBtn').disabled = true;
+    document.getElementById('fReviveBtn').disabled = false;
+    render();
+  }
+
+  function revivePrimary(){
+    document.getElementById('fReviveBtn').disabled = true;
+    if(currentPrimary==='B'){
+      // old primary A comes back after B was promoted
+      if(fencing){
+        primaryAlive = true;
+        // A checks generation, sees B is primary, demotes itself
+        render();
+        showBanner('good', '✅ Node A rejoined and checked its generation number — saw Node B is now primary and demoted itself to standby. No conflict.');
+      } else {
+        primaryAlive = true;
+        splitBrainActive = true;
+        splitBrainCount++;
+        document.getElementById('fSplitVal').textContent = splitBrainCount;
+        render();
+        showBanner('bad', '⚠ SPLIT BRAIN: Node A rejoined without checking, and both A and B now believe they are primary. Writes to either could conflict.');
+      }
+      document.getElementById('fKillBtn').disabled = true; // failover already happened; use Reset to try again
+    } else {
+      // never actually failed over, just bring it back
+      primaryAlive = true;
+      render();
+      document.getElementById('fKillBtn').disabled = false;
+    }
+  }
+
+  function showBanner(type,msg){
+    const b = document.getElementById('fBanner');
+    b.className = 'banner show '+type;
+    b.textContent = msg;
+  }
+  function hideBanner(){
+    document.getElementById('fBanner').className = 'banner';
+  }
+
+  document.getElementById('fKillBtn').addEventListener('click', killPrimary);
+  document.getElementById('fReviveBtn').addEventListener('click', revivePrimary);
+  document.getElementById('fFenceSwitch').addEventListener('click', function(){
+    fencing = !fencing;
+    this.classList.toggle('on', fencing);
+  });
+  document.getElementById('fResetBtn').addEventListener('click', ()=>{
+    primaryAlive=true; currentPrimary='A'; missed=0; splitBrainActive=false;
+    document.getElementById('fMissedVal').textContent='0';
+    document.getElementById('fFailoverVal').textContent='—';
+    document.getElementById('fKillBtn').disabled=false;
+    document.getElementById('fReviveBtn').disabled=true;
+    hideBanner();
+    render();
+  });
+
+  build();
+  if(watchdog) clearInterval(watchdog);
+  watchdog = setInterval(watchdogTick, 1000);
+  window.addEventListener('resize', build);
+})();
+
+/* ============ SCENE B: CIRCUIT BREAKER ============ */
+(function(){
+  const stage = document.getElementById('bkStage');
+  const lines = document.getElementById('bkLines');
+  let failRate = 60;
+  let breakerEnabled = true;
+  let state = 'CLOSED'; // CLOSED, OPEN, HALF
+  let consecFailures = 0;
+  const threshold = 3;
+  const cooldownMs = 3000;
+  let latencies = [];
+  let shortCircuited = 0;
+  let realFailed = 0;
+  let coolingDown = false;
+
+  let posA, posB, breakerPos;
+  function layout(){
+    const w = stage.clientWidth, h = stage.clientHeight;
+    posA = {x:60, y:h/2};
+    breakerPos = {x:w*0.5, y:h/2};
+    posB = {x:w-70, y:h/2};
+    stage.querySelectorAll('.bknode, .breaker-light').forEach(n=>n.remove());
+    const a = document.createElement('div');
+    a.className='bknode'; a.style.left=posA.x+'px'; a.style.top=posA.y+'px';
+    a.innerHTML='<div>Service A</div><div style="color:var(--muted);font-size:9.5px;">caller</div>';
+    stage.appendChild(a);
+
+    const brk = document.createElement('div');
+    brk.className='breaker-light closed'; brk.id='bkBreakerEl';
+    brk.style.left=breakerPos.x+'px'; brk.style.top=breakerPos.y+'px';
+    brk.innerHTML='<div>CLOSED</div>';
+    stage.appendChild(brk);
+
+    const b = document.createElement('div');
+    b.className='bknode'; b.style.left=posB.x+'px'; b.style.top=posB.y+'px';
+    b.innerHTML='<div>Service B</div><div style="color:var(--muted);font-size:9.5px;">dependency</div>';
+    stage.appendChild(b);
+
+    lines.innerHTML='';
+    drawDashedLine(lines, posA.x, posA.y, breakerPos.x, breakerPos.y, '#8996AC');
+    drawDashedLine(lines, breakerPos.x, breakerPos.y, posB.x, posB.y, '#8996AC');
+  }
+
+  function setBreakerState(s){
+    state = s;
+    const el = document.getElementById('bkBreakerEl');
+    el.className = 'breaker-light ' + (s==='CLOSED'?'closed':s==='OPEN'?'open':'half');
+    el.innerHTML = `<div>${s==='HALF'?'HALF-OPEN':s}</div>`;
+    document.getElementById('bkStateVal').textContent = s==='HALF'?'HALF-OPEN':s;
+  }
+
+  function sendPacket(from,to,color,dur){
+    const p = document.createElement('div');
+    p.className='bkpacket';
+    p.style.background=color; p.style.boxShadow=`0 0 6px ${color}`;
+    stage.appendChild(p);
+    p.style.left=(from.x-3)+'px'; p.style.top=(from.y-3)+'px';
+    p.style.transition=`left ${dur}ms linear, top ${dur}ms linear`;
+    requestAnimationFrame(()=>{ p.style.left=(to.x-3)+'px'; p.style.top=(to.y-3)+'px'; });
+    setTimeout(()=>{ p.style.opacity='0'; setTimeout(()=>p.remove(),150); }, dur);
+  }
+
+  function recordLatency(ms){
+    latencies.push(ms);
+    if(latencies.length>12) latencies.shift();
+    const avg = latencies.reduce((a,b)=>a+b,0)/latencies.length;
+    document.getElementById('bkLatencyVal').textContent = Math.round(avg)+'ms';
+  }
+
+  function tripOpen(){
+    setBreakerState('OPEN');
+    coolingDown = true;
+    setTimeout(()=>{
+      setBreakerState('HALF');
+      coolingDown = false;
+    }, cooldownMs);
+  }
+
+  function makeRequest(){
+    if(breakerEnabled && state==='OPEN'){
+      shortCircuited++;
+      document.getElementById('bkShortVal').textContent = shortCircuited;
+      sendPacket(posA, {x:(posA.x+breakerPos.x)/2, y:posA.y}, '#8996AC', 150);
+      recordLatency(8);
+      return;
+    }
+    const isTrial = breakerEnabled && state==='HALF';
+    const fails = Math.random()*100 < failRate;
+    const dur = fails ? 1100 : 220;
+    sendPacket(posA, posB, fails ? '#EF4444' : '#2DD4BF', dur);
+    setTimeout(()=>{
+      recordLatency(dur);
+      if(fails){
+        realFailed++;
+        document.getElementById('bkFailedVal').textContent = realFailed;
+        consecFailures++;
+        if(breakerEnabled){
+          if(isTrial){ tripOpen(); }
+          else if(consecFailures>=threshold && state==='CLOSED'){ tripOpen(); }
+        }
+      } else {
+        consecFailures = 0;
+        if(breakerEnabled && isTrial){ setBreakerState('CLOSED'); }
+      }
+      document.getElementById('bkConsecVal').textContent = Math.min(consecFailures,threshold)+' / '+threshold;
+    }, dur);
+  }
+
+  document.getElementById('bkFail').addEventListener('input', e=>{
+    failRate = parseInt(e.target.value);
+    document.getElementById('bkFailVal').textContent = failRate+'%';
+  });
+  document.getElementById('bkEnableSwitch').addEventListener('click', function(){
+    breakerEnabled = !breakerEnabled;
+    this.classList.toggle('on', breakerEnabled);
+    if(!breakerEnabled){ setBreakerState('CLOSED'); consecFailures=0; }
+  });
+  document.getElementById('bkResetBtn').addEventListener('click', ()=>{
+    consecFailures=0; latencies=[]; shortCircuited=0; realFailed=0;
+    setBreakerState('CLOSED');
+    document.getElementById('bkConsecVal').textContent='0 / 3';
+    document.getElementById('bkLatencyVal').textContent='—';
+    document.getElementById('bkShortVal').textContent='0';
+    document.getElementById('bkFailedVal').textContent='0';
+  });
+
+  layout();
+  setBreakerState('CLOSED');
+  window.addEventListener('resize', layout);
+  setInterval(makeRequest, 650);
+})();
+
+/* ============ SCENE C: BULKHEAD ============ */
+(function(){
+  let bulkhead = false;
+  let overloading = false;
+  let recLoad = 0;
+  const sharedCap = 10;
+  const recDedicatedCap = 4;
+  let overloadTimer = null;
+
+  const cards = {
+    search: document.getElementById('ckSearch'),
+    recs: document.getElementById('ckRecs'),
+    reviews: document.getElementById('ckReviews'),
+    checkout: document.getElementById('ckCheckout'),
+  };
+  const fills = {
+    search: document.getElementById('ckSearchFill'),
+    recs: document.getElementById('ckRecsFill'),
+    reviews: document.getElementById('ckReviewsFill'),
+    checkout: document.getElementById('ckCheckoutFill'),
+  };
+
+  function render(){
+    const sharedWrap = document.getElementById('ckSharedWrap');
+    sharedWrap.style.display = bulkhead ? 'none' : 'block';
+
+    if(bulkhead){
+      const pct = Math.min(100, (recLoad/recDedicatedCap)*100);
+      fills.recs.style.width = pct+'%';
+      const recBroken = recLoad >= recDedicatedCap;
+      cards.recs.classList.toggle('broken', recBroken);
+      ['search','reviews','checkout'].forEach(k=>{
+        cards[k].classList.remove('broken');
+        fills[k].style.width = '8%';
+      });
+      const working = 3 + (recBroken?0:1);
+      document.getElementById('ckWorkingVal').textContent = working+' / 4';
+      document.getElementById('ckScopeVal').textContent = recBroken ? 'Partial (Recommendations only)' : 'None';
+      document.getElementById('ckScopeVal').style.color = recBroken ? 'var(--amber)' : 'var(--text)';
+    } else {
+      const pct = Math.min(100, (recLoad/sharedCap)*100);
+      document.getElementById('ckSharedFill').style.width = pct+'%';
+      document.getElementById('ckSharedFill').classList.toggle('danger', pct>=100);
+      const totalOutage = recLoad >= sharedCap;
+      Object.keys(cards).forEach(k=>{
+        cards[k].classList.toggle('broken', totalOutage);
+        fills[k].style.width = totalOutage ? '100%' : (k==='recs' ? pct+'%' : '8%');
+      });
+      document.getElementById('ckWorkingVal').textContent = totalOutage ? '0 / 4' : '4 / 4';
+      document.getElementById('ckScopeVal').textContent = totalOutage ? 'Total outage (all features)' : 'None';
+      document.getElementById('ckScopeVal').style.color = totalOutage ? 'var(--red)' : 'var(--text)';
+    }
+    document.getElementById('ckDot').classList.toggle('bad', bulkhead ? recLoad>=recDedicatedCap : recLoad>=sharedCap);
+  }
+
+  document.getElementById('ckOverloadBtn').addEventListener('click', ()=>{
+    if(overloading) return;
+    overloading = true;
+    overloadTimer = setInterval(()=>{
+      const cap = bulkhead ? recDedicatedCap+2 : sharedCap+2;
+      recLoad = Math.min(cap, recLoad+1);
+      render();
+    }, 300);
+  });
+  document.getElementById('ckStopBtn').addEventListener('click', ()=>{
+    overloading = false;
+    clearInterval(overloadTimer);
+    const drain = setInterval(()=>{
+      recLoad = Math.max(0, recLoad-1);
+      render();
+      if(recLoad<=0) clearInterval(drain);
+    }, 150);
+  });
+  document.getElementById('ckBulkheadSwitch').addEventListener('click', function(){
+    bulkhead = !bulkhead;
+    this.classList.toggle('on', bulkhead);
+    render();
+  });
+  document.getElementById('ckResetBtn').addEventListener('click', ()=>{
+    overloading=false;
+    clearInterval(overloadTimer);
+    recLoad=0;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

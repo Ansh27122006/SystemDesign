@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Architectural Patterns — Serverless Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#F7F9FC; --panel-2:#E7ECF3; --border:#5C6B84;
+    --text:#0F172A; --muted:#3F4C60;
+    --cyan:#0B7C82; --amber:#B45309; --coral:#C81E3A; --violet:#6D28D9; --green:#15803D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;}
+  ::selection{background:var(--cyan); color:#FFFFFF;}
+  body{
+    background-image:linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size:36px 36px;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding:0 24px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header{padding:52px 0 34px;}
+  .crumb{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:2.5px; color:var(--cyan); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .crumb .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(30px,5vw,50px); line-height:1.06; margin-top:14px; letter-spacing:-0.5px;}
+  h1 .hl{color:var(--violet);}
+  .lead{color:var(--muted); font-size:16px; max-width:680px; margin-top:16px; line-height:1.6;}
+
+  .hero-anim{margin-top:34px; background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:24px; position:relative; box-shadow:0 4px 14px rgba(15,23,42,0.08);}
+  .hero-anim .cap{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .hero-anim .cap::before{content:'▸'; color:var(--violet);}
+
+  main{padding:10px 0 100px;}
+  section{margin-top:56px;}
+  .sec-eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber);}
+  .sec-title{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:8px;}
+  .sec-desc{color:var(--muted); font-size:15px; margin-top:10px; max-width:720px; line-height:1.65;}
+
+  .versus{display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:stretch; margin-top:26px;}
+  @media(max-width:760px){.versus{grid-template-columns:1fr;}}
+  .vcard{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:24px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .vcard.a{border-top:4px solid var(--green);} .vcard.b{border-top:4px solid var(--coral);}
+  .vcard h3{font-family:'Space Grotesk',sans-serif; font-size:20px; margin-bottom:10px;}
+  .vcard.a h3{color:var(--green);} .vcard.b h3{color:var(--coral);}
+  .vcard p{color:var(--muted); font-size:14px; line-height:1.65;}
+  .vcard ul{margin-top:12px; padding-left:18px; color:var(--muted); font-size:13.5px; line-height:1.8;}
+  .vs-mid{display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--muted); font-size:14px;}
+
+  .panel{background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:26px; margin-top:26px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .panel-label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+  .panel-label::before{content:'▸'; color:var(--violet);}
+  .panel-note{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.6; border-top:1px solid var(--border); padding-top:14px;}
+  .panel-note b{color:var(--text);}
+
+  .controls{display:flex; gap:14px; flex-wrap:wrap; margin-top:20px; align-items:center;}
+  button.btn{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:#FFFFFF; background:var(--violet); border:none; border-radius:8px; padding:11px 18px; cursor:pointer; transition:transform .15s, opacity .15s;}
+  button.btn:hover{transform:translateY(-1px); opacity:.9;}
+  button.btn.ghost{background:transparent; color:var(--text); border:2px solid var(--border);}
+  button.btn.cyan{background:var(--cyan);}
+  button.btn.amber{background:var(--amber);}
+  button.btn.coral{background:var(--coral);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+  .toggle-row{display:flex; gap:8px; background:var(--panel-2); border:2px solid var(--border); border-radius:9px; padding:4px; width:fit-content; flex-wrap:wrap;}
+  .toggle-row button{font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 16px; border-radius:6px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-weight:600;}
+  .toggle-row button.active{background:var(--violet); color:#FFFFFF; font-weight:700;}
+
+  .readout{display:flex; gap:28px; margin-top:18px; flex-wrap:wrap;}
+  .readout .item{font-family:'JetBrains Mono',monospace;}
+  .readout .item .l{font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;}
+  .readout .item .v{font-size:20px; font-weight:700; margin-top:2px;}
+
+  svg text{font-family:'JetBrains Mono',monospace;}
+  .fn-box, .inst-box, .meter-bar{transition:all .3s ease;}
+
+  .examples-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:26px;}
+  @media(max-width:760px){.examples-grid{grid-template-columns:1fr;}}
+  .ex-card{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:20px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .ex-card .ex-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;}
+  .ex-card h4{font-family:'Space Grotesk',sans-serif; font-size:16.5px; margin-bottom:6px;}
+  .ex-card p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .ex-card .tagrow{margin-top:12px; display:flex; gap:8px;}
+  .ex-card .tagrow span{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;}
+
+  .activity{background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:2px dashed var(--border); border-radius:16px; padding:28px; margin-top:26px;}
+  .activity-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .activity-head .pill{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; background:var(--amber); color:#FFFFFF; padding:3px 9px; border-radius:20px; font-weight:700;}
+  .activity h4{font-family:'Space Grotesk',sans-serif; font-size:19px;}
+  .activity p.instr{color:var(--muted); font-size:14px; margin-top:6px; margin-bottom:20px;}
+  .scenario{border:2px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; background:var(--panel);}
+  .scenario .stext{font-size:14.5px; margin-bottom:12px; line-height:1.55;}
+  .choices{display:flex; gap:10px; flex-wrap:wrap;}
+  .choice-btn{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer; background:var(--panel-2); border:2px solid var(--border); color:var(--text); font-weight:600; transition:all .15s;}
+  .choice-btn:hover{border-color:var(--violet);}
+  .choice-btn.correct{background:rgba(21,128,61,0.15); border-color:var(--green); color:var(--green);}
+  .choice-btn.wrong{background:rgba(200,30,58,0.13); border-color:var(--coral); color:var(--coral);}
+  .choice-btn.disabled{pointer-events:none;}
+  .explain{display:none; margin-top:12px; font-size:13.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; line-height:1.6;}
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+  .score-bar{display:flex; align-items:center; gap:14px; margin-top:22px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted);}
+  .score-track{flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--border);}
+  .score-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--violet), var(--green)); transition:width .4s;}
+
+  .myth-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+  .myth{background:var(--panel); border:2px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .myth .x{color:var(--coral); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .myth .body b{display:block; font-size:14px; margin-bottom:4px;}
+  .myth .body p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  table.summary{width:100%; border-collapse:collapse; margin-top:20px;}
+  table.summary th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:10px 12px; border-bottom:2px solid var(--border);}
+  table.summary td{padding:12px; font-size:13.5px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+
+  footer{border-top:2px solid var(--border); padding:28px 0; text-align:center; color:var(--muted); font-size:12.5px; font-family:'JetBrains Mono',monospace; margin-top:60px;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="crumb"><span class="dot"></span>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS · SERVERLESS</div>
+    <h1>Serverless <span class="hl">Architecture</span></h1>
+    <p class="lead">Module 04 introduced serverless as a third option next to monolith and microservices. This module goes deep on it alone: what actually happens when a function runs, why it scales the way it does, how billing works down to the millisecond, and the one big catch — statelessness.</p>
+
+    <div class="hero-anim">
+      <div class="cap">Opening picture — a food truck that only exists when it's needed</div>
+      <svg id="svgTruck" viewBox="0 0 900 220" width="100%" style="max-height:250px; display:block;"></svg>
+      <p class="panel-note">There's no truck parked on the street costing you money while nobody's hungry. The moment an order comes in, a truck (a function instance) appears, cooks the one order, and then vanishes — no rent, no idle staff. Order 50 things at once, and 50 trucks appear simultaneously. That's serverless in one picture.</p>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= DEFINITIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">01 · CORE DEFINITION</div>
+      <div class="sec-title">What actually makes something "serverless"</div>
+      <p class="sec-desc">"Serverless" doesn't mean no servers — it means you never see them. Five traits define the model.</p>
+
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Trait</th><th>What it means in practice</th></tr>
+          <tr><td class="mono">Event-triggered</td><td>Code runs only in response to a trigger — an HTTP request, a file upload, a schedule, a queue message.</td></tr>
+          <tr><td class="mono">Automatic scaling</td><td>The platform spins up as many parallel instances as needed, from zero to thousands, with no capacity planning from you.</td></tr>
+          <tr><td class="mono">No server management</td><td>The provider handles the OS, patching, capacity, and infrastructure entirely — you supply only code.</td></tr>
+          <tr><td class="mono">Pay-per-execution</td><td>Billing is based on number of invocations and execution time/memory used — not on uptime.</td></tr>
+          <tr><td class="mono">Stateless between calls</td><td>Each invocation runs in a fresh (or possibly reused) environment — you can't reliably rely on in-memory state surviving between calls.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= SIM 1: FUNCTION LIFECYCLE ================= -->
+    <section>
+      <div class="sec-eyebrow">02 · ANIMATION</div>
+      <div class="sec-title">The full lifecycle of one function call</div>
+      <p class="sec-desc">Watch a single request travel through every stage — including the cold start most tutorials skip over.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — from idle to executing to scaled back to zero</div>
+        <svg id="svgLifecycle" viewBox="0 0 900 200" width="100%" style="max-height:220px;"></svg>
+        <div class="controls">
+          <button class="btn" id="lifecycleBtn">▶ Trigger the function</button>
+          <button class="btn ghost" id="lifecycleReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Current stage</div><div class="v" id="lifecycleStage" style="color:var(--muted)">Idle (scaled to zero)</div></div>
+          <div class="item"><div class="l">Elapsed</div><div class="v" id="lifecycleTime" style="color:var(--violet)">—</div></div>
+        </div>
+        <p class="panel-note" id="lifecycleNote">Click "Trigger the function" to watch a cold invocation happen step by step: provision → initialize → execute → stay warm briefly → scale back to zero.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 2: AUTO-SCALING BURST ================= -->
+    <section>
+      <div class="sec-eyebrow">03 · ANIMATION</div>
+      <div class="sec-title">From zero to hundreds, automatically</div>
+      <p class="sec-desc">No one configures how many instances to run. The platform spins up exactly as many as the incoming traffic needs, in parallel, and tears them back down once the burst passes.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — a sudden burst of 24 concurrent requests</div>
+        <svg id="svgBurst" viewBox="0 0 900 260" width="100%" style="max-height:290px;"></svg>
+        <div class="controls">
+          <button class="btn cyan" id="burstBtn">⚡ Send 24 simultaneous requests</button>
+          <button class="btn ghost" id="burstReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Active instances</div><div class="v" id="burstCount" style="color:var(--violet)">0</div></div>
+          <div class="item"><div class="l">Peak concurrency reached</div><div class="v" id="burstPeak" style="color:var(--cyan)">0</div></div>
+        </div>
+        <p class="panel-note">Notice nobody pre-provisioned "24 servers" — the platform simply created that many isolated instances the moment it saw that many simultaneous requests, and will quietly remove them once the burst is over.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 3: PAY PER EXECUTION ================= -->
+    <section>
+      <div class="sec-eyebrow">04 · ANIMATION</div>
+      <div class="sec-title">Billing down to the millisecond</div>
+      <p class="sec-desc">Each invocation is metered individually: duration × memory allocated determines the cost, and the meter runs only while code is actually executing.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — three invocations, three different bills</div>
+        <svg id="svgMeter" viewBox="0 0 900 220" width="100%" style="max-height:240px;"></svg>
+        <div class="controls">
+          <button class="btn amber" id="meterBtn">▶ Run 3 invocations of different sizes</button>
+          <button class="btn ghost" id="meterReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Total metered time</div><div class="v" id="meterTotal" style="color:var(--amber)">0ms</div></div>
+          <div class="item"><div class="l">Total cost (relative units)</div><div class="v" id="meterCost" style="color:var(--coral)">$0.00</div></div>
+        </div>
+        <p class="panel-note">An always-on server would have cost the same flat amount whether it ran these 3 invocations or sat idle all day. Here, the bill is built purely from the sum of actual compute consumed.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 4: STATELESSNESS ================= -->
+    <section>
+      <div class="sec-eyebrow">05 · ANIMATION</div>
+      <div class="sec-title">The catch: nothing survives between calls</div>
+      <p class="sec-desc">This trips up almost everyone the first time. A variable set during one invocation is not guaranteed to exist during the next one — even a moment later — because it might run in a brand-new instance.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — two calls, two different (possibly fresh) instances</div>
+        <svg id="svgState" viewBox="0 0 900 220" width="100%" style="max-height:240px;"></svg>
+        <div class="controls">
+          <button class="btn" id="call1Btn">Call 1 — set counter = 1</button>
+          <button class="btn violet" id="call2Btn">Call 2 — read the counter</button>
+          <button class="btn ghost" id="stateReset">Reset</button>
+        </div>
+        <p class="panel-note" id="stateNote">Try it: set the counter in Call 1, then read it in Call 2. Because each invocation may land on a different, fresh instance, the counter is often gone — which is why real serverless apps store state in an external database or cache, never in local memory.</p>
+      </div>
+    </section>
+
+    <!-- ================= PROS & CONS ================= -->
+    <section>
+      <div class="sec-eyebrow">06 · TRADE-OFFS</div>
+      <div class="sec-title">Where serverless genuinely wins — and where it hurts</div>
+      <div class="versus">
+        <div class="vcard a">
+          <h3>Strengths</h3>
+          <ul>
+            <li>Zero infrastructure management — no servers to patch, size, or keep alive</li>
+            <li>Scales automatically from zero to huge bursts with no configuration</li>
+            <li>Pay only for actual execution — no cost for idle time</li>
+            <li>Fast to build small, independent, event-triggered pieces of logic</li>
+          </ul>
+        </div>
+        <div class="vs-mid">VS</div>
+        <div class="vcard b">
+          <h3>Weaknesses</h3>
+          <ul>
+            <li>Cold starts add latency after idle periods</li>
+            <li>Statelessness forces every bit of state into external storage</li>
+            <li>Most platforms cap execution time (e.g. 15 minutes) — not for long-running jobs</li>
+            <li>Can cost more than always-on servers under sustained, high, steady load</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= REAL WORLD EXAMPLES ================= -->
+    <section>
+      <div class="sec-eyebrow">07 · REAL-WORLD EXAMPLES</div>
+      <div class="sec-title">Serverless in serious production use</div>
+      <div class="examples-grid">
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(109,40,217,0.14); color:var(--violet);">🖼️</div>
+          <h4>Image/thumbnail processing on upload</h4>
+          <p>The textbook serverless case: a function triggers automatically the instant a file lands in storage, resizes or transcodes it, and disappears. No server ever sits around waiting for the next upload.</p>
+          <div class="tagrow"><span style="background:rgba(109,40,217,0.14); color:var(--violet);">EVENT-TRIGGERED</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(11,124,130,0.14); color:var(--cyan);">🥤</div>
+          <h4>Coca-Cola's vending machine payments</h4>
+          <p>Bursty, unpredictable purchase events across thousands of machines make pay-per-invocation a natural fit — no fleet of always-on servers is needed to handle occasional soda purchases.</p>
+          <div class="tagrow"><span style="background:rgba(11,124,130,0.14); color:var(--cyan);">BURSTY TRAFFIC</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(180,83,9,0.14); color:var(--amber);">🤖</div>
+          <h4>iRobot's Roomba data pipeline</h4>
+          <p>iRobot processes telemetry data streaming in from millions of home robots using serverless functions, letting the pipeline scale automatically with however many robots happen to be reporting in at once.</p>
+          <div class="tagrow"><span style="background:rgba(180,83,9,0.14); color:var(--amber);">MASSIVE FAN-IN</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(200,30,58,0.14); color:var(--coral);">🔗</div>
+          <h4>Webhook receivers &amp; scheduled jobs</h4>
+          <p>Handling a payment provider's webhook, or running a nightly cleanup job, are both classic low-frequency, event-triggered tasks — paying for an always-on server just to wait for these would be mostly waste.</p>
+          <div class="tagrow"><span style="background:rgba(200,30,58,0.14); color:var(--coral);">SCHEDULED / TRIGGERED</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MISCONCEPTIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">08 · COMMON CONFUSIONS</div>
+      <div class="sec-title">What students usually get wrong</div>
+      <div class="myth-list">
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"I can store data in a variable and it'll be there next time my function runs."</b><p>Not reliably. Instances can be reused (giving the illusion this works in testing) or replaced entirely — production code should never depend on in-memory state surviving between invocations.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Serverless functions can run as long as I need them to."</b><p>Every major platform caps execution time — AWS Lambda's limit is 15 minutes, for example. Long-running jobs need a different architecture entirely (a container, a queue-based worker, etc).</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Serverless" only means "functions" (FaaS).</b><p>The broader "serverless" ecosystem also includes serverless databases, storage, and queues that scale and bill the same way — the FaaS function is just the most visible piece.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section>
+      <div class="sec-eyebrow">09 · IN-CLASS ACTIVITY</div>
+      <div class="sec-title">Good fit or bad fit for serverless?</div>
+      <div class="activity" id="act1">
+        <div class="activity-head"><span class="pill">GRADED</span></div>
+        <h4>Should this workload run as a serverless function?</h4>
+        <p class="instr">For each scenario, decide whether serverless is a reasonable choice.</p>
+
+        <div class="scenario" data-answer="good">
+          <div class="stext">1. A function that validates and resizes a profile photo the instant a user uploads one, a few thousand times a day at unpredictable moments.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>good fit</b>. Short-lived, event-triggered, unpredictable timing — exactly the profile serverless functions are built for.</div>
+        </div>
+
+        <div class="scenario" data-answer="bad">
+          <div class="stext">2. A video encoding job that regularly needs to run for 45 minutes to process a single long file.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>bad fit</b> for standard serverless functions — most platforms cap execution around 15 minutes. This calls for containers or a dedicated worker instead.</div>
+        </div>
+
+        <div class="scenario" data-answer="bad">
+          <div class="stext">3. A backend that needs to keep an in-memory cache of recent lookups, hit thousands of times per second, where every millisecond of latency matters.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>bad fit</b>. Serverless's statelessness works against an in-memory cache design, and sustained high-frequency traffic often costs more on a per-invocation model than an always-on service.</div>
+        </div>
+
+        <div class="scenario" data-answer="good">
+          <div class="stext">4. A nightly job that pulls a report, emails it to a distribution list, and finishes in under a minute.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>good fit</b>. A short, scheduled, infrequent task is close to a textbook serverless use case — paying for an always-on server just to wait for once-a-day work would be wasteful.</div>
+        </div>
+
+        <div class="score-bar"><span>SCORE</span><div class="score-track"><div class="score-fill" id="scoreFill1"></div></div><span id="scoreText1">0 / 4</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SUMMARY ================= -->
+    <section>
+      <div class="sec-eyebrow">10 · SUMMARY</div>
+      <div class="sec-title">Quick reference</div>
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Aspect</th><th>Serverless (FaaS)</th></tr>
+          <tr><td>Deployment unit</td><td>An individual function</td></tr>
+          <tr><td>Scaling</td><td>Automatic, per-invocation, from zero to very high concurrency</td></tr>
+          <tr><td>Who manages servers</td><td>The cloud provider</td></tr>
+          <tr><td>Cost model</td><td>Pay per invocation × duration × memory — nothing while idle</td></tr>
+          <tr><td>State</td><td>None guaranteed between invocations — use external storage</td></tr>
+          <tr><td>Execution limits</td><td>Capped duration (commonly minutes, not hours)</td></tr>
+          <tr><td>Best for</td><td>Event-triggered, bursty, short-lived, unpredictable workloads</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS · Serverless Architecture · reduced-motion friendly</footer>
+
+<script>
+function colorOf(v){ const t=document.createElement('div'); t.style.color=v; document.body.appendChild(t); const c=getComputedStyle(t).color; t.remove(); return c; }
+function spawnDot(svgEl, x1,y1,x2,y2,color,dur,onComplete,r){
+  const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('cx',x1); c.setAttribute('cy',y1); c.setAttribute('r',r||7);
+  c.setAttribute('fill',color); c.style.transition = `all ${dur}ms linear`;
+  svgEl.appendChild(c);
+  requestAnimationFrame(()=>{ c.setAttribute('cx',x2); c.setAttribute('cy',y2); });
+  setTimeout(()=>{ c.remove(); if(onComplete) onComplete(); }, dur+40);
+}
+
+/* ================= HERO TRUCK ================= */
+const svgTruck = document.getElementById('svgTruck');
+function renderTruck(){
+  let svg='';
+  svg += `<line x1="30" y1="180" x2="870" y2="180" stroke="var(--border)" stroke-width="2" stroke-dasharray="6 5"/>`;
+  svg += `<text x="450" y="30" fill="var(--muted)" font-size="10.5" text-anchor="middle">EMPTY STREET — no truck, no cost, until someone orders</text>`;
+  svg += `<rect x="380" y="90" width="140" height="70" rx="8" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="3"/>`;
+  svg += `<circle cx="410" cy="170" r="12" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2.5"/>`;
+  svg += `<circle cx="490" cy="170" r="12" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2.5"/>`;
+  svg += `<text x="450" y="130" fill="var(--violet)" font-size="12" text-anchor="middle" font-weight="700">🚚 appears on order</text>`;
+  svgTruck.innerHTML = svg;
+}
+renderTruck();
+
+/* ================= LIFECYCLE ================= */
+const svgLifecycle = document.getElementById('svgLifecycle');
+const lcStages = ['Idle','Provisioning','Initializing','Executing','Warm (idle)','Scaled to zero'];
+function buildLifecycleBase(){
+  let svg='';
+  svg += `<rect id="lcBox" x="360" y="60" width="180" height="80" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2.5" stroke-dasharray="5 4"/>`;
+  svg += `<text id="lcLabel" x="450" y="105" fill="var(--muted)" font-size="12" text-anchor="middle" font-weight="700">idle — no instance running</text>`;
+  svg += `<text x="450" y="30" fill="var(--muted)" font-size="10.5" text-anchor="middle">provision → initialize → execute → stay warm → scale to zero</text>`;
+  svgLifecycle.innerHTML = svg;
+}
+buildLifecycleBase();
+document.getElementById('lifecycleBtn').addEventListener('click', ()=>{
+  buildLifecycleBase();
+  const box = document.getElementById('lcBox');
+  const label = document.getElementById('lcLabel');
+  const steps = [
+    {name:'Provisioning', t:600, color:'var(--amber)', txt:'spinning up a new container...'},
+    {name:'Initializing', t:500, color:'var(--amber)', txt:'loading your code and dependencies...'},
+    {name:'Executing', t:700, color:'var(--violet)', txt:'running your function code'},
+    {name:'Warm (idle)', t:900, color:'var(--cyan)', txt:'kept warm briefly, in case another request arrives'},
+    {name:'Scaled to zero', t:0, color:'var(--muted)', txt:'no request came — instance removed'},
+  ];
+  let elapsed = 0;
+  let delay = 0;
+  steps.forEach((s,i)=>{
+    setTimeout(()=>{
+      box.setAttribute('stroke', colorOf(s.color));
+      box.setAttribute('stroke-dasharray', i===steps.length-1 ? '5 4' : '0');
+      label.setAttribute('fill', colorOf(s.color));
+      label.textContent = s.txt;
+      document.getElementById('lifecycleStage').textContent = s.name;
+      document.getElementById('lifecycleStage').style.color = colorOf(s.color);
+      elapsed += (i>0?steps[i-1].t:0);
+      document.getElementById('lifecycleTime').textContent = elapsed+'ms';
+    }, delay);
+    delay += s.t;
+  });
+});
+document.getElementById('lifecycleReset').addEventListener('click', ()=>{
+  buildLifecycleBase();
+  document.getElementById('lifecycleStage').textContent='Idle (scaled to zero)';
+  document.getElementById('lifecycleStage').style.color=colorOf('var(--muted)');
+  document.getElementById('lifecycleTime').textContent='—';
+});
+
+/* ================= AUTO-SCALING BURST ================= */
+const svgBurst = document.getElementById('svgBurst');
+function buildBurstBase(){
+  svgBurst.innerHTML = `<text x="450" y="20" fill="var(--muted)" font-size="10.5" text-anchor="middle">each box below is one isolated, parallel function instance</text>`;
+}
+buildBurstBase();
+document.getElementById('burstBtn').addEventListener('click', ()=>{
+  buildBurstBase();
+  let count = 0;
+  const total = 24;
+  const cols = 8;
+  for(let i=0;i<total;i++){
+    setTimeout(()=>{
+      const col = i % cols, row = Math.floor(i/cols);
+      const x = 60 + col*100, y = 40 + row*70;
+      const el = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      el.setAttribute('x',x); el.setAttribute('y',y); el.setAttribute('width','80'); el.setAttribute('height','50');
+      el.setAttribute('rx','7'); el.setAttribute('fill','var(--panel-2)'); el.setAttribute('stroke', colorOf('var(--violet)')); el.setAttribute('stroke-width','2.5');
+      el.classList.add('inst-box');
+      el.setAttribute('opacity','0');
+      svgBurst.appendChild(el);
+      requestAnimationFrame(()=>{ el.style.transitionDuration='250ms'; el.setAttribute('opacity','1'); });
+      count++;
+      document.getElementById('burstCount').textContent = count;
+      document.getElementById('burstPeak').textContent = count;
+      if(count===total){
+        setTimeout(()=>{
+          document.getElementById('burstCount').textContent = '0 (scaled back down)';
+        }, 1600);
+      }
+    }, i*60);
+  }
+});
+document.getElementById('burstReset').addEventListener('click', ()=>{
+  buildBurstBase();
+  document.getElementById('burstCount').textContent='0';
+  document.getElementById('burstPeak').textContent='0';
+});
+
+/* ================= PAY PER EXECUTION ================= */
+const svgMeter = document.getElementById('svgMeter');
+const invocations = [
+  {label:'Thumbnail resize', ms:120, mem:'128MB', color:'var(--cyan)'},
+  {label:'PDF generation', ms:850, mem:'512MB', color:'var(--amber)'},
+  {label:'Webhook forward', ms:40, mem:'128MB', color:'var(--green)'},
+];
+function buildMeterBase(){
+  let svg='';
+  invocations.forEach((inv,i)=>{
+    const y = 30+i*55;
+    svg += `<text x="20" y="${y+18}" fill="var(--text)" font-size="10.5" font-weight="700">${inv.label}</text>`;
+    svg += `<rect x="230" y="${y}" width="600" height="26" rx="5" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.5"/>`;
+    svg += `<rect id="meterBar${i}" class="meter-bar" x="230" y="${y}" width="0" height="26" rx="5" fill="${inv.color}" opacity="0.75"/>`;
+    svg += `<text x="840" y="${y+18}" fill="var(--muted)" font-size="9.5" text-anchor="end">${inv.mem}</text>`;
+  });
+  svgMeter.innerHTML = svg;
+}
+buildMeterBase();
+document.getElementById('meterBtn').addEventListener('click', ()=>{
+  buildMeterBase();
+  let totalMs = 0, totalCost = 0;
+  invocations.forEach((inv,i)=>{
+    setTimeout(()=>{
+      const bar = document.getElementById('meterBar'+i);
+      const widthPx = (inv.ms/900)*600;
+      bar.style.transitionDuration = Math.min(inv.ms,900)+'ms';
+      bar.setAttribute('width', widthPx);
+      totalMs += inv.ms;
+      const memFactor = inv.mem==='512MB'? 4 : 1;
+      totalCost += (inv.ms/1000)*memFactor*0.02;
+      setTimeout(()=>{
+        document.getElementById('meterTotal').textContent = totalMs+'ms';
+        document.getElementById('meterCost').textContent = '$'+totalCost.toFixed(4);
+      }, Math.min(inv.ms,900));
+    }, i*1000);
+  });
+});
+document.getElementById('meterReset').addEventListener('click', ()=>{
+  buildMeterBase();
+  document.getElementById('meterTotal').textContent='0ms';
+  document.getElementById('meterCost').textContent='$0.00';
+});
+
+/* ================= STATELESSNESS ================= */
+const svgState = document.getElementById('svgState');
+let counterValue = null;
+let lastInstanceId = null;
+function buildStateBase(){
+  let svg='';
+  svg += `<rect id="stateInstBox" x="330" y="60" width="240" height="90" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2.5" stroke-dasharray="5 4"/>`;
+  svg += `<text id="stateInstLabel" x="450" y="95" fill="var(--muted)" font-size="11" text-anchor="middle" font-weight="700">no instance running yet</text>`;
+  svg += `<text id="stateCounterLabel" x="450" y="118" fill="var(--muted)" font-size="10.5" text-anchor="middle">counter: (none)</text>`;
+  svgState.innerHTML = svg;
+}
+buildStateBase();
+document.getElementById('call1Btn').addEventListener('click', ()=>{
+  const isNewInstance = Math.random() < 1; // call 1 always spins a "new" instance for clarity
+  lastInstanceId = 'instance-' + Math.floor(Math.random()*9000+1000);
+  counterValue = 1;
+  const box = document.getElementById('stateInstBox');
+  const label = document.getElementById('stateInstLabel');
+  box.setAttribute('stroke', colorOf('var(--cyan)'));
+  box.setAttribute('stroke-dasharray','0');
+  label.setAttribute('fill', colorOf('var(--cyan)'));
+  label.textContent = lastInstanceId + ' (fresh)';
+  document.getElementById('stateCounterLabel').textContent = 'counter set to: '+counterValue;
+  document.getElementById('stateNote').innerHTML = `Call 1 ran on <b>${lastInstanceId}</b> and set counter = 1 in that instance's local memory.`;
+});
+document.getElementById('call2Btn').addEventListener('click', ()=>{
+  const box = document.getElementById('stateInstBox');
+  const label = document.getElementById('stateInstLabel');
+  const reused = Math.random() < 0.35 && lastInstanceId; // sometimes "reused" to show it's not guaranteed either way
+  const newId = reused ? lastInstanceId : 'instance-' + Math.floor(Math.random()*9000+1000);
+  if(reused){
+    box.setAttribute('stroke', colorOf('var(--cyan)'));
+    label.setAttribute('fill', colorOf('var(--cyan)'));
+    label.textContent = newId + ' (reused, by luck)';
+    document.getElementById('stateCounterLabel').textContent = 'counter read as: '+counterValue+' (only because the same instance happened to be reused)';
+    document.getElementById('stateNote').innerHTML = `This time the platform happened to reuse <b>${newId}</b>, so the counter was still there. This is exactly the trap — it <i>sometimes</i> appears to work, which is what makes people wrongly rely on it.`;
+  } else {
+    box.setAttribute('stroke', colorOf('var(--coral)'));
+    label.setAttribute('fill', colorOf('var(--coral)'));
+    label.textContent = newId + ' (brand new)';
+    document.getElementById('stateCounterLabel').textContent = 'counter read as: undefined — gone';
+    document.getElementById('stateNote').innerHTML = `Call 2 landed on a completely different instance, <b>${newId}</b> — the counter from Call 1 simply doesn't exist here. Real applications store this kind of state in a database or cache instead.`;
+  }
+});
+document.getElementById('stateReset').addEventListener('click', ()=>{
+  buildStateBase();
+  counterValue=null; lastInstanceId=null;
+  document.getElementById('stateNote').textContent = 'Try it: set the counter in Call 1, then read it in Call 2. Because each invocation may land on a different, fresh instance, the counter is often gone — which is why real serverless apps store state in an external database or cache, never in local memory.';
+});
+
+/* ================= ACTIVITY SCORING ================= */
+function wireActivity(containerId, fillId, textId){
+  const container = document.getElementById(containerId);
+  const scenarios = container.querySelectorAll('.scenario');
+  let correctCount = 0;
+  scenarios.forEach(sc=>{
+    const answer = sc.dataset.answer;
+    const btns = sc.querySelectorAll('.choice-btn');
+    const explain = sc.querySelector('.explain');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.classList.contains('disabled')) return;
+        btns.forEach(x=>x.classList.add('disabled'));
+        if(b.dataset.val === answer){ b.classList.add('correct'); correctCount++; }
+        else { b.classList.add('wrong'); btns.forEach(x=>{ if(x.dataset.val===answer) x.classList.add('correct'); }); }
+        explain.classList.add('show');
+        const pct = Math.round(100*correctCount/scenarios.length);
+        document.getElementById(fillId).style.width = pct+'%';
+        document.getElementById(textId).textContent = correctCount+' / '+scenarios.length;
+      });
+    });
+  });
+}
+wireActivity('act1','scoreFill1','scoreText1');
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Application Logic Lab</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f5fa;--panel:#fff;--ink:#14213d;--mute:#58647f;--line:#d6dcea;--soft:#eaeef7;--good:#1b8f4f;--bad:#d1384b;--warn:#d9830b;--app:#7a4fd8;--db:#0f8f8a;--c1:#2f6fed;--code:#10203f;--codeink:#e6edff;--hl:#3b2f86}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--bad:#ff6b7d;--warn:#ffb340;--app:#b194ff;--db:#35d0c8;--c1:#5b94ff}}
+:root[data-theme="dark"]{--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--bad:#ff6b7d;--warn:#ffb340;--app:#b194ff;--db:#35d0c8;--c1:#5b94ff}
+[hidden]{display:none!important}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Avenir Next","Trebuchet MS",system-ui,sans-serif}
+main{max-width:1120px;margin:0 auto;padding:20px 16px 40px}
+h1{font:800 clamp(26px,5vw,38px)/1.1 "Avenir Next Condensed","Arial Narrow",system-ui,sans-serif;margin:0 0 4px}
+h2{font-size:16px;margin:0 0 6px}
+.sub{color:var(--mute);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:14px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:14px}
+@media(max-width:860px){.grid,.grid2{grid-template-columns:1fr}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+svg{width:100%;height:auto;display:block}
+svg text{font-family:inherit;fill:var(--ink)}
+.nd{fill:var(--panel);stroke:var(--line);stroke-width:2}
+.m{fill:var(--mute)!important;font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{padding:3px 10px;border-radius:999px;background:var(--soft);color:var(--mute);font-weight:700;font-size:13px;border:2px solid transparent;transition:.25s}
+.chip.on{background:var(--app);color:#fff;border-color:var(--app);transform:scale(1.06)}
+.narr{background:var(--soft);border-left:6px solid var(--app);border-radius:10px;padding:8px 12px;min-height:48px;font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+label{font-weight:600;font-size:14px}
+input,select{font:inherit;padding:6px 8px;border-radius:8px;border:1.5px solid var(--line);background:var(--soft);color:var(--ink);max-width:100%}
+input[type=number]{width:70px}input#code{width:100px}
+button{font:inherit;font-weight:700;padding:8px 14px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--ink)}
+button.go{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--c1);outline-offset:2px}
+pre{margin:0;padding:8px 10px;border-radius:10px;background:var(--code);color:var(--codeink);font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+.st{font-weight:800}
+.code div{padding:0 6px;border-left:4px solid transparent;border-radius:4px;transition:background .2s}
+.code div.on{background:var(--hl);border-color:#ffd24d}
+.code{background:var(--code);color:var(--codeink);border-radius:10px;padding:8px 4px;font:12.5px/1.55 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+.fl{animation:fl .8s}
+@keyframes fl{30%{background:var(--warn);color:#000}}
+.glow{animation:gl .7s}
+@keyframes gl{50%{stroke-width:9}}
+.mark{font-weight:800;font-size:18px;animation:rise 1.2s forwards}
+@keyframes rise{to{transform:translateY(-22px);opacity:0}}
+@media(prefers-reduced-motion:reduce){.fl,.glow,.mark{animation:none}}
+</style></head>
+<body><main>
+<h1>Application Logic Lab</h1>
+<p class="sub">Place an order and watch the application layer validate, decide, talk to the database and answer the client.</p>
+
+<div class="grid">
+<div class="box"><svg id="sv" viewBox="0 0 700 290" aria-label="Client, application logic and database diagram"></svg>
+<div class="chips" id="chips"></div><div class="narr" id="narr">Press Place order to start.</div></div>
+<div class="box"><h2>Order request</h2>
+<div class="row"><label>Product <select id="prod"></select></label></div>
+<div class="row"><label>Quantity <input id="qty" type="number" value="2"></label><label>Code <input id="code" value="SAVE10" maxlength="8"></label></div>
+<div class="row"><label><input type="checkbox" id="failpay"> Make payment fail</label></div>
+<div class="row"><button class="go" id="run">Place order</button><button id="mode">Mode: Auto</button><button id="nextb" hidden>Next step</button></div>
+<div class="row"><b>Try:</b><button data-p="ok">Happy path</button><button data-p="bad">Invalid input</button><button data-p="stock">Out of stock</button><button data-p="pay">Payment fails</button></div>
+<h2>Request</h2><pre id="rq">POST /orders</pre>
+<h2 style="margin-top:8px">Response <span class="st" id="rs"></span></h2><pre id="rp">(waiting)</pre></div>
+</div>
+
+<div class="grid2">
+<div class="box"><h2>Application logic (simplified)</h2><div class="code" id="code2"></div></div>
+<div class="box"><h2>Database</h2><table id="pt"></table><h2 style="margin-top:10px">Orders</h2><table id="ot"></table><div class="row"><button id="reset">Reset database</button></div></div>
+</div>
+</main>
+<script>
+const NS='http://www.w3.org/2000/svg',$=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+const txt=(p,x,y,s,a={})=>{const t=el('text',{x,y,'text-anchor':'middle',...a},p);t.textContent=s;return t};
+const svg=$('#sv');
+const fly=(x1,y1,x2,y2,color,dur=550)=>new Promise(res=>{const c=el('circle',{r:8,stroke:'var(--bg)','stroke-width':2},svg);c.style.fill=color;const t0=performance.now();(function f(t){const p=Math.min(1,(t-t0)/dur);c.setAttribute('cx',x1+(x2-x1)*p);c.setAttribute('cy',y1+(y2-y1)*p);if(p<1)requestAnimationFrame(f);else{c.remove();res()}})(t0)});
+const mark=(x,y,s,c)=>{const t=txt(svg,x,y,s,{class:'mark'});t.style.fill=c;setTimeout(()=>t.remove(),1200)};
+/* diagram */
+const C={x:70,y:145},A={x:330,y:145},DB={x:620,y:235},PAY={x:620,y:45},EM={x:620,y:140};
+const node=(p,w,h,l,l2)=>{el('rect',{x:p.x-w/2,y:p.y-h/2,width:w,height:h,rx:12,class:'nd'},svg);txt(svg,p.x,p.y+(l2?-2:5),l,{'font-weight':700,'font-size':13});l2&&txt(svg,p.x,p.y+14,l2,{class:'m'})};
+[[PAY,'Payment'],[EM,'Email'],[DB,'Database']].forEach(([p])=>el('line',{x1:A.x+80,y1:A.y,x2:p.x-55,y2:p.y,stroke:'var(--line)','stroke-width':2,'stroke-dasharray':'5 5'},svg));
+el('line',{x1:C.x+36,y1:C.y,x2:A.x-80,y2:A.y,stroke:'var(--line)','stroke-width':2,'stroke-dasharray':'5 5'},svg);
+node(C,72,72,'Client','(UI)');txt(svg,C.x,C.y+58,'Browser / App',{class:'m'});
+const app=el('rect',{x:A.x-80,y:A.y-62,width:160,height:124,rx:14,fill:'var(--panel)',stroke:'var(--app)','stroke-width':4},svg);
+txt(svg,A.x,A.y-14,'Application',{'font-weight':800,'font-size':16});txt(svg,A.x,A.y+6,'Logic',{'font-weight':800,'font-size':16});txt(svg,A.x,A.y+30,'server layer',{class:'m'});
+node(PAY,110,44,'Payment service');node(EM,110,44,'Email service');node(DB,110,56,'Database','stock + orders');
+txt(svg,190,A.y-12,'HTTP request',{class:'m'});txt(svg,190,A.y+22,'JSON response',{class:'m'});
+/* data */
+const P0={laptop:{n:'Laptop',price:800,stock:5},phones:{n:'Headphones',price:120,stock:20},mouse:{n:'Mouse',price:25,stock:50}};
+let P,orders,oid;const resetDB=()=>{P=JSON.parse(JSON.stringify(P0));orders=[];oid=100;renderDB()};
+function renderDB(flash){$('#pt').innerHTML='<tr><th>Product</th><th>Price</th><th>Stock</th></tr>'+Object.entries(P).map(([k,p])=>`<tr><td>${p.n}</td><td>$${p.price}</td><td id="sk-${k}">${p.stock}</td></tr>`).join('');
+ $('#ot').innerHTML='<tr><th>ID</th><th>Item</th><th>Total</th><th>Status</th></tr>'+(orders.map(o=>`<tr><td>#${o.id}</td><td>${o.item} ×${o.q}</td><td>$${o.total}</td><td>${o.status}</td></tr>`).join('')||'<tr><td colspan=4 class="m">No orders yet</td></tr>');
+ if(flash){const e=$('#sk-'+flash);e&&e.classList.add('fl')}}
+$('#prod').innerHTML=Object.entries(P0).map(([k,p])=>`<option value="${k}">${p.n} ($${p.price})</option>`).join('');
+/* code + chips */
+const CODE=[[1,"app.post('/orders', async (req, res) => {"],[1,"  const { productId, quantity, code } = req.body;"],[1,"  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10)"],[1,"    return res.status(400).json({ error: 'Invalid input' });"],[2,"  const product = await getProduct(productId);"],[3,"  if (product.stock < quantity)"],[3,"    return res.status(409).json({ error: 'Out of stock' });"],[4,"  let total = product.price * quantity;"],[4,"  if (code === 'SAVE10') total *= 0.9;"],[5,"  const order = await createOrder(productId, quantity, total);"],[6,"  const paid = await payments.charge(order.id, total);"],[6,"  if (!paid) { await cancelOrder(order);"],[6,"    return res.status(402).json({ error: 'Payment failed' }); }"],[7,"  await email.send(order);"],[8,"  res.status(201).json({ message: 'Order placed', order });"],[0,"});"]];
+$('#code2').innerHTML=CODE.map(([s,t])=>`<div data-s="${s}"></div>`).join('');$('#code2').querySelectorAll('div').forEach((d,i)=>d.textContent=CODE[i][1]);
+const CH=['Validation','Database interaction','Business logic','Integration','Response generation'],chipOf={1:0,2:1,3:2,4:2,5:1,6:3,7:3,8:4};
+$('#chips').innerHTML=CH.map(c=>`<span class="chip">${c}</span>`).join('');
+function S(n,msg){document.querySelectorAll('#code2 div').forEach(d=>d.classList.toggle('on',+d.dataset.s===n));
+ document.querySelectorAll('.chip').forEach((c,i)=>c.classList.toggle('on',chipOf[n]===i));$('#narr').textContent=msg;
+ app.classList.remove('glow');void app.getBoundingClientRect();app.classList.add('glow')}
+/* run */
+let stepMode=false,running=false,nextR=null;
+async function gate(){if(!stepMode){await sleep(500);return}$('#nextb').hidden=false;await new Promise(r=>nextR=r);$('#nextb').hidden=true}
+const show=(st,body)=>{$('#rs').textContent=st;$('#rs').style.color=st<300?'var(--good)':'var(--bad)';$('#rp').textContent=JSON.stringify(body,null,2)};
+async function respond(st,body,why){const col=st<300?'var(--good)':'var(--bad)';S(8,why);await fly(A.x-80,A.y+12,C.x+36,C.y+12,col);show(st,body);mark(C.x,C.y-50,st<300?'✓':'✗',col);running=false;$('#run').disabled=false;$('#nextb').hidden=true}
+async function run(){if(running)return;running=true;$('#run').disabled=true;$('#rp').textContent='(waiting)';$('#rs').textContent='';
+ const id=$('#prod').value,q=Number($('#qty').value),code=$('#code').value.trim().toUpperCase(),failPay=$('#failpay').checked;
+ $('#rq').textContent=`POST /orders\n`+JSON.stringify({productId:id,quantity:q,code},null,2);
+ S(0,'The client sends an HTTP request to the application layer.');await fly(C.x+36,C.y,A.x-80,A.y,'var(--c1)');await gate();
+ S(1,'Validation: is the quantity a whole number from 1 to 10?');await gate();
+ if(!(Number.isInteger(q)&&q>=1&&q<=10))return respond(400,{error:'Invalid input'},'Invalid input is rejected here. The database was never touched, so bad data is stopped early.');
+ S(2,'Database interaction: fetch the product (price and stock).');await fly(A.x+80,A.y+20,DB.x-55,DB.y,'var(--db)');await fly(DB.x-55,DB.y,A.x+80,A.y+20,'var(--db)');const p=P[id];await gate();
+ S(3,`Business rule: is there enough stock? Wanted ${q}, have ${p.stock}.`);await gate();
+ if(p.stock<q)return respond(409,{error:'Out of stock'},'The business rule failed, so the logic answers with an error instead of creating the order.');
+ let total=p.price*q,note=`${p.price} × ${q} = $${total}`;if(code==='SAVE10'){total=Math.round(total*.9*100)/100;note+=`, SAVE10 applies 10% off → $${total}`}else if(code)note+=`, code "${code}" is not valid, no discount`;
+ S(4,'Business logic: '+note);await gate();
+ S(5,'Database interaction: create the order and reduce stock.');await fly(A.x+80,A.y+20,DB.x-55,DB.y,'var(--db)');p.stock-=q;const o={id:++oid,item:p.n,q,total,status:'pending'};orders.push(o);renderDB(id);await gate();
+ S(6,'Integration: ask the payment service to charge the customer.');await fly(A.x+80,A.y-10,PAY.x-55,PAY.y,'var(--warn)');
+ if(failPay){mark(PAY.x,PAY.y-30,'✗','var(--bad)');await gate();S(6,'Payment failed. The logic undoes the change: stock is restored and the order is cancelled.');await fly(A.x+80,A.y+20,DB.x-55,DB.y,'var(--bad)');p.stock+=q;o.status='cancelled';renderDB(id);await gate();
+  return respond(402,{error:'Payment failed'},'The client is told clearly what went wrong, and the data stays consistent.')}
+ mark(PAY.x,PAY.y-30,'✓','var(--good)');o.status='paid';renderDB();await gate();
+ S(7,'Integration: send a confirmation email.');await fly(A.x+80,A.y,EM.x-55,EM.y,'var(--warn)');mark(EM.x,EM.y-30,'✓','var(--good)');await gate();
+ return respond(201,{message:'Order placed',order:{id:o.id,item:p.n,quantity:q,total}},'Response generation: the logic formats the result as JSON and sends it back. The client just displays it.')}
+$('#run').onclick=run;$('#nextb').onclick=()=>nextR&&nextR();
+$('#mode').onclick=()=>{stepMode=!stepMode;$('#mode').textContent='Mode: '+(stepMode?'Step by step':'Auto');if(!stepMode&&nextR)nextR()};
+$('#reset').onclick=resetDB;
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{if(running)return;const k=b.dataset.p;
+ const v={ok:['phones',2,'SAVE10',0],bad:['phones',0,'SAVE10',0],stock:['laptop',6,'',0],pay:['mouse',3,'',1]}[k];
+ $('#prod').value=v[0];$('#qty').value=v[1];$('#code').value=v[2];$('#failpay').checked=!!v[3];run()});
+resetDB();
+</script></body></html>

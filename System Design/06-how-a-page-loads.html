@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>How a Web Page Loads — 2D &amp; 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#F7F9FC; --panel-2:#E7ECF3; --border:#5C6B84;
+    --text:#0F172A; --muted:#3F4C60;
+    --cyan:#0B7C82; --amber:#B45309; --coral:#C81E3A; --violet:#6D28D9; --green:#15803D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;}
+  ::selection{background:var(--cyan); color:#FFFFFF;}
+  body{
+    background-image:linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size:36px 36px;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding:0 24px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header{padding:52px 0 34px;}
+  .crumb{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:2.5px; color:var(--cyan); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .crumb .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(30px,5vw,50px); line-height:1.06; margin-top:14px; letter-spacing:-0.5px;}
+  h1 .hl{color:var(--cyan);}
+  .lead{color:var(--muted); font-size:16px; max-width:680px; margin-top:16px; line-height:1.6;}
+
+  main{padding:10px 0 100px;}
+  section{margin-top:56px;}
+  .sec-eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber);}
+  .sec-title{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:8px;}
+  .sec-desc{color:var(--muted); font-size:15px; margin-top:10px; max-width:720px; line-height:1.65;}
+
+  .versus{display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:stretch; margin-top:26px;}
+  @media(max-width:760px){.versus{grid-template-columns:1fr;}}
+  .vcard{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:24px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .vcard.a{border-top:4px solid var(--cyan);} .vcard.b{border-top:4px solid var(--violet);}
+  .vcard h3{font-family:'Space Grotesk',sans-serif; font-size:20px; margin-bottom:10px;}
+  .vcard.a h3{color:var(--cyan);} .vcard.b h3{color:var(--violet);}
+  .vcard p{color:var(--muted); font-size:14px; line-height:1.65;}
+  .vcard .metrics-list{margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;}
+  .vcard .metrics-list span{font-family:'JetBrains Mono',monospace; font-size:11px; background:var(--panel-2); border:1px solid var(--border); padding:4px 9px; border-radius:6px; color:var(--text);}
+  .vs-mid{display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--muted); font-size:14px;}
+
+  .panel{background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:26px; margin-top:26px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .panel-label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+  .panel-label::before{content:'▸'; color:var(--cyan);}
+  .panel-note{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.6; border-top:1px solid var(--border); padding-top:14px;}
+  .panel-note b{color:var(--text);}
+
+  .controls{display:flex; gap:14px; flex-wrap:wrap; margin-top:20px; align-items:center;}
+  button.btn{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:#FFFFFF; background:var(--cyan); border:none; border-radius:8px; padding:11px 18px; cursor:pointer; transition:transform .15s, opacity .15s;}
+  button.btn:hover{transform:translateY(-1px); opacity:.9;}
+  button.btn.ghost{background:transparent; color:var(--text); border:2px solid var(--border);}
+  button.btn.violet{background:var(--violet);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+
+  /* step dots */
+  .step-dots{display:flex; gap:8px; flex-wrap:wrap; margin-top:18px;}
+  .step-dot{width:30px; height:30px; border-radius:8px; border:2px solid var(--border); background:var(--panel-2); color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .2s;}
+  .step-dot:hover{border-color:var(--cyan);}
+  .step-dot.done{background:rgba(21,128,61,0.15); border-color:var(--green); color:var(--green);}
+  .step-dot.active{background:var(--cyan); border-color:var(--cyan); color:#FFFFFF; transform:scale(1.12);}
+
+  .caption-box{margin-top:18px; background:var(--panel-2); border:2px solid var(--border); border-radius:12px; padding:18px 20px;}
+  .caption-box .tag{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; padding:3px 9px; border-radius:20px; font-weight:700; display:inline-block; margin-bottom:8px;}
+  .caption-box h5{font-family:'Space Grotesk',sans-serif; font-size:16px; margin-bottom:6px;}
+  .caption-box p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  svg text{font-family:'JetBrains Mono',monospace;}
+  rect.node-box{transition:stroke .25s, filter .25s;}
+  rect.node-box.active-box{stroke-width:4; filter:drop-shadow(0 0 6px rgba(11,124,130,0.5));}
+
+  #three-container{width:100%; height:440px; border-radius:12px; overflow:hidden; border:2px solid var(--border); background:var(--panel-2); position:relative; cursor:grab;}
+  #three-container:active{cursor:grabbing;}
+  #three-hint{position:absolute; bottom:10px; right:14px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); background:rgba(255,255,255,0.75); padding:3px 9px; border-radius:6px;}
+
+  .examples-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:26px;}
+  @media(max-width:760px){.examples-grid{grid-template-columns:1fr;}}
+  .ex-card{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:20px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .ex-card .ex-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;}
+  .ex-card h4{font-family:'Space Grotesk',sans-serif; font-size:16.5px; margin-bottom:6px;}
+  .ex-card p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .ex-card .tagrow{margin-top:12px; display:flex; gap:8px;}
+  .ex-card .tagrow span{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;}
+
+  .myth-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+  .myth{background:var(--panel); border:2px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .myth .x{color:var(--coral); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .myth .body b{display:block; font-size:14px; margin-bottom:4px;}
+  .myth .body p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  .activity{background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:2px dashed var(--border); border-radius:16px; padding:28px; margin-top:26px;}
+  .activity-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .activity-head .pill{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; background:var(--amber); color:#FFFFFF; padding:3px 9px; border-radius:20px; font-weight:700;}
+  .activity h4{font-family:'Space Grotesk',sans-serif; font-size:19px;}
+  .activity p.instr{color:var(--muted); font-size:14px; margin-top:6px; margin-bottom:20px;}
+  .scenario{border:2px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; background:var(--panel);}
+  .scenario .stext{font-size:14.5px; margin-bottom:12px; line-height:1.55;}
+  .choices{display:flex; gap:10px; flex-wrap:wrap;}
+  .choice-btn{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer; background:var(--panel-2); border:2px solid var(--border); color:var(--text); font-weight:600; transition:all .15s;}
+  .choice-btn:hover{border-color:var(--cyan);}
+  .choice-btn.correct{background:rgba(21,128,61,0.15); border-color:var(--green); color:var(--green);}
+  .choice-btn.wrong{background:rgba(200,30,58,0.13); border-color:var(--coral); color:var(--coral);}
+  .choice-btn.disabled{pointer-events:none;}
+  .explain{display:none; margin-top:12px; font-size:13.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; line-height:1.6;}
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+  .score-bar{display:flex; align-items:center; gap:14px; margin-top:22px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted);}
+  .score-track{flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--border);}
+  .score-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--green)); transition:width .4s;}
+
+  table.summary{width:100%; border-collapse:collapse; margin-top:8px;}
+  table.summary th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:10px 12px; border-bottom:2px solid var(--border);}
+  table.summary td{padding:11px 12px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+
+  footer{border-top:2px solid var(--border); padding:28px 0; text-align:center; color:var(--muted); font-size:12.5px; font-family:'JetBrains Mono',monospace; margin-top:60px;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="crumb"><span class="dot"></span>SYSTEM DESIGN LAB · HOW THE WEB WORKS</div>
+    <h1>How a Web Page <span class="hl">Loads</span></h1>
+    <p class="lead">Typing a URL and hitting enter feels instant. Underneath, it's a relay race: a lookup, two handshakes, a request, server work, a response, and then a whole separate pipeline just to turn HTML/CSS into pixels. This module walks the whole trip twice — once as a detailed 2D diagram, once as a spatial 3D scene.</p>
+  </header>
+
+  <main>
+
+    <!-- ================= DEFINITIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">01 · THE BIG PICTURE</div>
+      <div class="sec-title">Two separate phases, back to back</div>
+      <p class="sec-desc">Everything that happens when a page loads falls into one of two phases. Both matter, and slowness in either one is felt by the user as "the site is slow."</p>
+
+      <div class="versus">
+        <div class="vcard a">
+          <h3>Network Phase</h3>
+          <p>Getting bytes from a server somewhere on the internet onto the user's machine: finding the server's address, establishing a secure connection, sending a request, and waiting for a response.</p>
+          <div class="metrics-list">
+            <span>DNS lookup</span><span>TCP handshake</span><span>TLS handshake</span><span>HTTP request/response</span>
+          </div>
+        </div>
+        <div class="vs-mid">then</div>
+        <div class="vcard b">
+          <h3>Rendering Phase</h3>
+          <p>Turning the raw HTML/CSS/JS bytes that just arrived into actual pixels on screen, and making the page respond to clicks and scrolls.</p>
+          <div class="metrics-list">
+            <span>DOM &amp; CSSOM</span><span>render tree</span><span>layout</span><span>paint &amp; composite</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 2D ANIMATION ================= -->
+    <section>
+      <div class="sec-eyebrow">02 · 2D ANIMATION</div>
+      <div class="sec-title">The full trip, step by step</div>
+      <p class="sec-desc">Press play, or click any numbered step directly. Watch the diagram highlight and a packet travel for each stage — top row is the network phase, bottom row is the rendering phase.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — 13-step request &amp; render pipeline</div>
+        <svg id="svg2d" viewBox="0 0 900 420" width="100%" style="max-height:460px;"></svg>
+
+        <div class="step-dots" id="stepDots2d"></div>
+
+        <div class="controls">
+          <button class="btn" id="play2d">▶ Play all steps</button>
+          <button class="btn ghost" id="reset2d">Reset</button>
+        </div>
+
+        <div class="caption-box" id="caption2d">
+          <span class="tag" style="background:var(--cyan); color:#fff;">STEP 1 / 13</span>
+          <h5>Ready when you are</h5>
+          <p>Click "Play all steps" or click step 1 below to begin.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 3D ANIMATION ================= -->
+    <section>
+      <div class="sec-eyebrow">03 · 3D ANIMATION</div>
+      <div class="sec-title">The same trip, in space</div>
+      <p class="sec-desc">This view trades precision for intuition: the client, the DNS resolver, and the server as physical places, with packets that actually travel between them — and the rendering pipeline rising as stacked layers once the response lands.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — spatial view (drag to rotate)</div>
+        <div id="three-container"><span id="three-hint">drag to rotate</span></div>
+
+        <div class="step-dots" id="stepDots3d"></div>
+
+        <div class="controls">
+          <button class="btn violet" id="play3d">▶ Play all steps</button>
+          <button class="btn ghost" id="reset3d">Reset</button>
+        </div>
+
+        <div class="caption-box" id="caption3d">
+          <span class="tag" style="background:var(--violet); color:#fff;">STEP 1 / 8</span>
+          <h5>Ready when you are</h5>
+          <p>Click "Play all steps" or click step 1 below to begin.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= REAL WORLD EXAMPLES ================= -->
+    <section>
+      <div class="sec-eyebrow">04 · REAL-WORLD EXAMPLES</div>
+      <div class="sec-title">Where engineers actually speed this up</div>
+      <div class="examples-grid">
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(11,124,130,0.14); color:var(--cyan);">🌐</div>
+          <h4>CDNs shortcut the network phase</h4>
+          <p>Content Delivery Networks cache your site's files on servers physically close to each visitor, cutting DNS + connection + response time — often the single biggest real-world speed win for a global audience.</p>
+          <div class="tagrow"><span style="background:rgba(11,124,130,0.14); color:var(--cyan);">NETWORK PHASE</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(180,83,9,0.14); color:var(--amber);">⏱️</div>
+          <h4>async / defer on script tags</h4>
+          <p>A plain <span class="mono">&lt;script&gt;</span> tag blocks HTML parsing until it downloads and runs. Adding <span class="mono">defer</span> or <span class="mono">async</span> lets the browser keep building the DOM in parallel, which is why almost every modern site uses one of them.</p>
+          <div class="tagrow"><span style="background:rgba(180,83,9,0.14); color:var(--amber);">RENDERING PHASE</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(109,40,217,0.14); color:var(--violet);">📦</div>
+          <h4>Minified &amp; compressed CSS/JS</h4>
+          <p>Smaller files mean less to download in the network phase and less for the browser to parse in the rendering phase — this is why production builds strip whitespace, shorten variable names, and gzip everything.</p>
+          <div class="tagrow"><span style="background:rgba(109,40,217,0.14); color:var(--violet);">BOTH PHASES</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(21,128,61,0.14); color:var(--green);">🖼️</div>
+          <h4>Lazy-loading images</h4>
+          <p>Images below the fold are told to load only once the user scrolls near them (<span class="mono">loading="lazy"</span>), so the initial render finishes faster instead of waiting on content nobody's looking at yet.</p>
+          <div class="tagrow"><span style="background:rgba(21,128,61,0.14); color:var(--green);">RENDERING PHASE</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MISCONCEPTIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">05 · COMMON CONFUSIONS</div>
+      <div class="sec-title">What students usually get wrong</div>
+      <div class="myth-list">
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"The whole HTML file has to arrive before anything shows up."</b><p>Not quite — browsers parse HTML incrementally as bytes stream in, which is why pages can render progressively, top to bottom, rather than all at once at the very end.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Page load is done once the HTML response arrives."</b><p>That's roughly the halfway point. Building the DOM, fetching CSS/JS, computing layout, painting, and compositing all still have to happen before the user sees or can interact with anything.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"JavaScript always blocks rendering."</b><p>Only true for a plain, synchronous <span class="mono">&lt;script&gt;</span> tag in the document head. <span class="mono">async</span> and <span class="mono">defer</span> both let parsing continue while the script downloads.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section>
+      <div class="sec-eyebrow">06 · IN-CLASS ACTIVITY</div>
+      <div class="sec-title">Test the sequence</div>
+      <div class="activity" id="act1">
+        <div class="activity-head"><span class="pill">GRADED</span></div>
+        <h4>What happens next?</h4>
+        <p class="instr">For each question, pick the correct answer about the loading sequence.</p>
+
+        <div class="scenario" data-answer="dns">
+          <div class="stext">1. The browser has the domain name but no IP address yet. What has to happen before any connection can be made?</div>
+          <div class="choices"><button class="choice-btn" data-val="dns">DNS lookup</button><button class="choice-btn" data-val="tls">TLS handshake</button><button class="choice-btn" data-val="paint">Paint</button></div>
+          <div class="explain">Correct answer: <b>DNS lookup</b>. The browser must translate the human-readable domain into an IP address before it can even attempt to connect to anything.</div>
+        </div>
+
+        <div class="scenario" data-answer="dom">
+          <div class="stext">2. The HTTP response with the HTML has just arrived at the browser. What's the very next thing that happens?</div>
+          <div class="choices"><button class="choice-btn" data-val="dom">Browser starts parsing HTML into the DOM</button><button class="choice-btn" data-val="composite">Browser composites final pixels</button><button class="choice-btn" data-val="dns2">Browser repeats the DNS lookup</button></div>
+          <div class="explain">Correct answer: <b>parsing HTML into the DOM</b>. The rendering phase always starts with turning the raw HTML text into a structured tree the browser can work with.</div>
+        </div>
+
+        <div class="scenario" data-answer="layout">
+          <div class="stext">3. The browser already has the DOM and CSSOM combined into a render tree. What must happen before anything can be painted?</div>
+          <div class="choices"><button class="choice-btn" data-val="layout">Layout — calculating position/size of every element</button><button class="choice-btn" data-val="dns3">DNS lookup, again</button><button class="choice-btn" data-val="tcp3">TCP handshake, again</button></div>
+          <div class="explain">Correct answer: <b>layout</b>. The browser needs to know exactly where and how big every element is before it can fill in any pixels.</div>
+        </div>
+
+        <div class="scenario" data-answer="defer">
+          <div class="stext">4. A page has a large JavaScript file that isn't needed until after the page is visible. What lets the HTML keep parsing while that script downloads?</div>
+          <div class="choices"><button class="choice-btn" data-val="defer">Using the defer (or async) attribute</button><button class="choice-btn" data-val="cssom">Waiting for the CSSOM to finish first</button><button class="choice-btn" data-val="tcp4">Opening a second TCP connection manually</button></div>
+          <div class="explain">Correct answer: <b>defer/async</b>. Without one of these, a plain script tag halts HTML parsing until the script finishes downloading and executing.</div>
+        </div>
+
+        <div class="score-bar"><span>SCORE</span><div class="score-track"><div class="score-fill" id="scoreFill1"></div></div><span id="scoreText1">0 / 4</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SUMMARY ================= -->
+    <section>
+      <div class="sec-eyebrow">07 · SUMMARY</div>
+      <div class="sec-title">The full sequence, quick reference</div>
+      <div class="panel">
+        <table class="summary">
+          <tr><th>#</th><th>Stage</th><th>Phase</th><th>Typical time</th></tr>
+          <tr><td>1</td><td>DNS lookup</td><td>Network</td><td>~20–120ms (cached: ~0ms)</td></tr>
+          <tr><td>2</td><td>TCP handshake</td><td>Network</td><td>~30–100ms</td></tr>
+          <tr><td>3</td><td>TLS handshake</td><td>Network</td><td>~50–150ms</td></tr>
+          <tr><td>4</td><td>HTTP request sent</td><td>Network</td><td>~1–5ms</td></tr>
+          <tr><td>5</td><td>Server processing</td><td>Network</td><td>~10ms–1s+ (varies widely)</td></tr>
+          <tr><td>6</td><td>HTTP response received</td><td>Network</td><td>depends on payload size</td></tr>
+          <tr><td>7</td><td>HTML parsed → DOM</td><td>Rendering</td><td>~1–20ms per typical page</td></tr>
+          <tr><td>8</td><td>CSS parsed → CSSOM</td><td>Rendering</td><td>~1–20ms</td></tr>
+          <tr><td>9</td><td>JS fetched / executed</td><td>Rendering</td><td>varies — can block parsing</td></tr>
+          <tr><td>10</td><td>Render tree built</td><td>Rendering</td><td>~1–10ms</td></tr>
+          <tr><td>11</td><td>Layout (reflow)</td><td>Rendering</td><td>~1–10ms, more for complex pages</td></tr>
+          <tr><td>12</td><td>Paint</td><td>Rendering</td><td>~1–10ms</td></tr>
+          <tr><td>13</td><td>Composite → interactive</td><td>Rendering</td><td>~1–5ms</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>SYSTEM DESIGN LAB · HOW THE WEB WORKS · Page Load Pipeline · reduced-motion friendly</footer>
+
+<script>
+/* =========================================================================
+   SHARED STAGE DATA (13 stages) — used to drive both the 2D SVG diagram
+   and to generate captions. The 3D scene uses a condensed 8-stage version.
+   ========================================================================= */
+const stages13 = [
+  {cat:'network', color:'var(--cyan)', title:'DNS Lookup', desc:'The browser asks a DNS resolver to translate the domain name (e.g. example.com) into an IP address, like looking up a phone number by name.'},
+  {cat:'network', color:'var(--cyan)', title:'TCP Handshake', desc:'Client and server exchange SYN, SYN-ACK, and ACK packets to establish a reliable connection before any real data is sent.'},
+  {cat:'network', color:'var(--cyan)', title:'TLS Handshake', desc:'For HTTPS, client and server exchange keys to set up encryption, so everything sent afterward is unreadable to anyone intercepting it.'},
+  {cat:'network', color:'var(--cyan)', title:'HTTP Request Sent', desc:'The browser sends a GET request for the HTML document, along with headers (cookies, accepted formats, etc).'},
+  {cat:'network', color:'var(--cyan)', title:'Server Processing', desc:'The server runs application code, queries databases if needed, and assembles the response — this step\'s time varies the most.'},
+  {cat:'network', color:'var(--cyan)', title:'HTTP Response Received', desc:'The server sends back a status code (like 200 OK) and the HTML document itself, which starts streaming to the browser.'},
+  {cat:'render', color:'var(--violet)', title:'HTML Parsed → DOM', desc:'The browser reads HTML top to bottom, building the Document Object Model — a tree representing every element on the page.'},
+  {cat:'render', color:'var(--violet)', title:'CSS Parsed → CSSOM', desc:'Stylesheets are fetched and parsed into the CSS Object Model, describing how every element should look.'},
+  {cat:'render', color:'var(--violet)', title:'JS Fetched &amp; Executed', desc:'External scripts are downloaded; a plain, blocking script pauses HTML parsing until it finishes running.'},
+  {cat:'render', color:'var(--violet)', title:'Render Tree Built', desc:'The DOM and CSSOM are combined into a render tree — only visible elements, each with their final computed style.'},
+  {cat:'render', color:'var(--violet)', title:'Layout (Reflow)', desc:'The browser calculates the exact position and size of every element on the page, based on the render tree.'},
+  {cat:'render', color:'var(--violet)', title:'Paint', desc:'The browser fills in actual pixels — colors, borders, shadows, text, and images — for every element.'},
+  {cat:'render', color:'var(--violet)', title:'Composite &amp; Interactive', desc:'Painted layers are combined onto the screen, and event listeners attach — the page is now visible and usable.'},
+];
+
+/* =========================================================================
+   2D SVG ANIMATION
+   ========================================================================= */
+const svg2d = document.getElementById('svg2d');
+const stepDots2d = document.getElementById('stepDots2d');
+const caption2d = document.getElementById('caption2d');
+
+// static layout coordinates
+const netNodes = {
+  client:{x:50, y:70, w:150, h:70, label:'CLIENT'},
+  dns:{x:380, y:15, w:150, h:60, label:'DNS RESOLVER'},
+  server:{x:700, y:70, w:150, h:70, label:'SERVER'},
+};
+const pipeBoxes = [
+  {id:'box-dom', x:34,  label:'HTML→DOM'},
+  {id:'box-cssom', x:157, label:'CSS→CSSOM'},
+  {id:'box-js', x:280, label:'JS fetch/exec'},
+  {id:'box-rtree', x:403, label:'Render Tree'},
+  {id:'box-layout', x:526, label:'Layout'},
+  {id:'box-paint', x:649, label:'Paint'},
+  {id:'box-composite', x:772, label:'Composite'},
+];
+const pipeY = 300, pipeW = 95, pipeH = 75;
+
+function buildBase2d(){
+  let svg='';
+  svg += `<text x="450" y="14" fill="var(--muted)" font-size="11" text-anchor="middle">NETWORK PHASE</text>`;
+  Object.entries(netNodes).forEach(([key,n])=>{
+    svg += `<rect class="node-box" id="net-${key}" x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2.5"/>`;
+    svg += `<text x="${n.x+n.w/2}" y="${n.y+n.h/2+4}" fill="var(--text)" font-size="11.5" text-anchor="middle" font-weight="700">${n.label}</text>`;
+  });
+  // static connecting lines
+  svg += `<line x1="200" y1="90" x2="380" y2="45" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="5 5"/>`;
+  svg += `<line x1="200" y1="105" x2="700" y2="105" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="5 5"/>`;
+
+  svg += `<text x="450" y="270" fill="var(--muted)" font-size="11" text-anchor="middle">RENDERING PHASE (in the browser)</text>`;
+  pipeBoxes.forEach((b,i)=>{
+    svg += `<rect class="node-box" id="${b.id}" x="${b.x}" y="${pipeY}" width="${pipeW}" height="${pipeH}" rx="9" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2.5"/>`;
+    svg += `<text x="${b.x+pipeW/2}" y="${pipeY+pipeH/2+4}" fill="var(--text)" font-size="9.5" text-anchor="middle" font-weight="700">${b.label}</text>`;
+    if(i<pipeBoxes.length-1){
+      svg += `<line x1="${b.x+pipeW}" y1="${pipeY+pipeH/2}" x2="${pipeBoxes[i+1].x}" y2="${pipeY+pipeH/2}" stroke="var(--border)" stroke-width="1.5"/>`;
+    }
+  });
+  svg += `<text x="450" y="405" fill="var(--muted)" font-size="10.5" text-anchor="middle">click a numbered step below, or press play, to watch each stage light up</text>`;
+  svg2d.innerHTML = svg;
+}
+buildBase2d();
+
+function buildDots(container, count, onClick){
+  let html='';
+  for(let i=0;i<count;i++){
+    html += `<div class="step-dot" data-i="${i}">${i+1}</div>`;
+  }
+  container.innerHTML = html;
+  container.querySelectorAll('.step-dot').forEach(dot=>{
+    dot.addEventListener('click', ()=>onClick(parseInt(dot.dataset.i)));
+  });
+}
+function updateDots(container, current){
+  container.querySelectorAll('.step-dot').forEach(dot=>{
+    const i = parseInt(dot.dataset.i);
+    dot.classList.remove('active','done');
+    if(i < current) dot.classList.add('done');
+    if(i === current) dot.classList.add('active');
+  });
+}
+
+function clearHighlights2d(){
+  document.querySelectorAll('#svg2d .node-box').forEach(el=>{
+    el.classList.remove('active-box');
+    el.setAttribute('stroke','var(--border)');
+  });
+}
+function spawnPacket2d(x1,y1,x2,y2,color,delay,dur){
+  setTimeout(()=>{
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',x1); c.setAttribute('cy',y1); c.setAttribute('r','8');
+    c.setAttribute('fill',color); c.style.transition = `all ${dur}ms linear`;
+    svg2d.appendChild(c);
+    requestAnimationFrame(()=>{ c.setAttribute('cx',x2); c.setAttribute('cy',y2); });
+    setTimeout(()=>c.remove(), dur+60);
+  }, delay);
+}
+
+function playStage2d(i){
+  clearHighlights2d();
+  const s = stages13[i];
+  const cx = (id)=>({x:0});
+  // network stages 0-5
+  const netCenters = {
+    client:[netNodes.client.x+netNodes.client.w/2, netNodes.client.y+netNodes.client.h/2],
+    dns:[netNodes.dns.x+netNodes.dns.w/2, netNodes.dns.y+netNodes.dns.h/2],
+    server:[netNodes.server.x+netNodes.server.w/2, netNodes.server.y+netNodes.server.h/2],
+  };
+  function hl(id){
+    const el = document.getElementById(id);
+    if(el){ el.classList.add('active-box'); el.setAttribute('stroke', s.color.replace('var(','').replace(')','')==='' ? '#0B7C82' : getComputedColor(s.color)); }
+  }
+  function getComputedColor(v){
+    const tmp = document.createElement('div');
+    tmp.style.color = v; document.body.appendChild(tmp);
+    const c = getComputedStyle(tmp).color; tmp.remove(); return c;
+  }
+  if(i===0){ hl('net-client'); hl('net-dns');
+    spawnPacket2d(...netCenters.client, ...netCenters.dns, getComputedColor(s.color), 0, 500);
+    spawnPacket2d(...netCenters.dns, ...netCenters.client, getComputedColor(s.color), 600, 500);
+  } else if(i===1){ hl('net-client'); hl('net-server');
+    spawnPacket2d(...netCenters.client, ...netCenters.server, getComputedColor(s.color), 0, 400);
+    spawnPacket2d(...netCenters.server, ...netCenters.client, getComputedColor(s.color), 450, 400);
+    spawnPacket2d(...netCenters.client, ...netCenters.server, getComputedColor(s.color), 900, 400);
+  } else if(i===2){ hl('net-client'); hl('net-server');
+    spawnPacket2d(...netCenters.client, ...netCenters.server, getComputedColor(s.color), 0, 500);
+    spawnPacket2d(...netCenters.server, ...netCenters.client, getComputedColor(s.color), 550, 500);
+  } else if(i===3){ hl('net-client'); hl('net-server');
+    spawnPacket2d(...netCenters.client, ...netCenters.server, getComputedColor(s.color), 0, 600);
+  } else if(i===4){ hl('net-server');
+  } else if(i===5){ hl('net-server'); hl('net-client');
+    spawnPacket2d(...netCenters.server, ...netCenters.client, getComputedColor('var(--green)'), 0, 700);
+  } else {
+    const boxIdx = i-6;
+    hl(pipeBoxes[boxIdx].id);
+    if(boxIdx>0){
+      const prev = pipeBoxes[boxIdx-1];
+      const cur = pipeBoxes[boxIdx];
+      spawnPacket2d(prev.x+pipeW/2, pipeY+pipeH/2, cur.x+pipeW/2, pipeY+pipeH/2, getComputedColor(s.color), 0, 350);
+    }
+  }
+  document.getElementById('caption2d').innerHTML = `
+    <span class="tag" style="background:${s.color}; color:#fff;">STEP ${i+1} / 13 · ${s.cat==='network'?'NETWORK':'RENDERING'}</span>
+    <h5>${s.title}</h5><p>${s.desc}</p>`;
+  updateDots(stepDots2d, i);
+}
+
+buildDots(stepDots2d, stages13.length, (i)=>{ stopAutoplay2d(); playStage2d(i); });
+
+let autoplay2dTimer = null;
+function stopAutoplay2d(){ if(autoplay2dTimer){ clearInterval(autoplay2dTimer); autoplay2dTimer=null; document.getElementById('play2d').textContent='▶ Play all steps'; } }
+document.getElementById('play2d').addEventListener('click', ()=>{
+  if(autoplay2dTimer){ stopAutoplay2d(); return; }
+  let i = 0;
+  playStage2d(i);
+  document.getElementById('play2d').textContent = '⏸ Pause';
+  autoplay2dTimer = setInterval(()=>{
+    i++;
+    if(i>=stages13.length){ stopAutoplay2d(); return; }
+    playStage2d(i);
+  }, 1600);
+});
+document.getElementById('reset2d').addEventListener('click', ()=>{
+  stopAutoplay2d();
+  buildBase2d();
+  updateDots(stepDots2d, -1);
+  document.getElementById('caption2d').innerHTML = `<span class="tag" style="background:var(--cyan); color:#fff;">STEP 1 / 13</span><h5>Ready when you are</h5><p>Click "Play all steps" or click step 1 below to begin.</p>`;
+});
+
+/* =========================================================================
+   3D SCENE
+   ========================================================================= */
+const stages8 = [
+  {title:'DNS Lookup', desc:'The client asks the DNS resolver (elevated, at the back) to translate the domain into an IP address, and gets an answer back.'},
+  {title:'TCP + TLS Handshake', desc:'Client and server exchange a quick back-and-forth of small packets to open a reliable, encrypted connection before any real data moves.'},
+  {title:'HTTP Request', desc:'The client sends a request packet across to the server, asking for the page.'},
+  {title:'Server Processing', desc:'The server (right, the rack of boxes) lights up while it runs code and prepares a response.'},
+  {title:'HTTP Response', desc:'A larger packet — the HTML payload — travels back from the server to the client.'},
+  {title:'DOM + CSSOM Built', desc:'Back at the client, two translucent layers rise: the DOM (structure) and the CSSOM (style) — built in parallel from the response.'},
+  {title:'Render Tree, Layout & Paint', desc:'Three more layers stack on top: the combined render tree, the calculated layout, and the painted pixels for every element.'},
+  {title:'Composite & Interactive', desc:'All layers settle into their final stack and glow briefly — the page is now visible and ready for clicks and scrolls.'},
+];
+
+let scene, camera, renderer, group, clientMesh, serverGroup, dnsMesh;
+let dragging=false, lastX=0, rotY=0.4, autoRotate=true;
+let layerMeshes = [];
+let currentTween = null;
+let three3dInited = false;
+
+function initThree(){
+  if(three3dInited) return;
+  three3dInited = true;
+  const container = document.getElementById('three-container');
+  const w = container.clientWidth, h = container.clientHeight;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xEEF2F7);
+
+  camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 100);
+
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(w,h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  container.appendChild(renderer.domElement);
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.75);
+  scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  dirLight.position.set(6,10,8);
+  scene.add(dirLight);
+
+  group = new THREE.Group();
+  scene.add(group);
+
+  const grid = new THREE.GridHelper(30,24,0xB9C4D4,0xD7DEE8);
+  group.add(grid);
+
+  // client
+  const clientGeo = new THREE.BoxGeometry(2.2,1.2,1.6);
+  const clientMat = new THREE.MeshStandardMaterial({color:0x0B7C82});
+  clientMesh = new THREE.Mesh(clientGeo, clientMat);
+  clientMesh.position.set(-8,0.6,0);
+  group.add(clientMesh);
+  group.add(makeLabel('CLIENT', -8, 1.6, 0, '#0B7C82'));
+
+  // dns
+  const dnsGeo = new THREE.BoxGeometry(1.2,1.2,1.2);
+  const dnsMat = new THREE.MeshStandardMaterial({color:0x6D28D9});
+  dnsMesh = new THREE.Mesh(dnsGeo, dnsMat);
+  dnsMesh.position.set(0,3,-4);
+  group.add(dnsMesh);
+  group.add(makeLabel('DNS RESOLVER', 0, 3.9, -4, '#6D28D9'));
+
+  // server rack (3 stacked boxes)
+  serverGroup = new THREE.Group();
+  for(let i=0;i<3;i++){
+    const geo = new THREE.BoxGeometry(1.8,0.55,1.6);
+    const mat = new THREE.MeshStandardMaterial({color:0xC81E3A});
+    const m = new THREE.Mesh(geo,mat);
+    m.position.set(8, 0.35+i*0.65, 0);
+    serverGroup.add(m);
+  }
+  group.add(serverGroup);
+  group.add(makeLabel('SERVER', 8, 2.6, 0, '#C81E3A'));
+
+  camera.position.set(0,7,17);
+  camera.lookAt(0,1,0);
+
+  const c = document.getElementById('three-container');
+  c.addEventListener('mousedown', (e)=>{ dragging=true; lastX=e.clientX; autoRotate=false; });
+  window.addEventListener('mouseup', ()=>{ dragging=false; });
+  window.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    const dx = e.clientX - lastX; lastX = e.clientX;
+    rotY += dx*0.005;
+  });
+  c.addEventListener('touchstart', (e)=>{ dragging=true; lastX=e.touches[0].clientX; autoRotate=false; }, {passive:true});
+  window.addEventListener('touchend', ()=>{ dragging=false; });
+  window.addEventListener('touchmove', (e)=>{
+    if(!dragging) return;
+    const dx = e.touches[0].clientX - lastX; lastX = e.touches[0].clientX;
+    rotY += dx*0.005;
+  }, {passive:true});
+
+  animateThree();
+}
+
+function makeLabel(text, x, y, z, color){
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(255,255,255,0)';
+  ctx.fillRect(0,0,256,64);
+  ctx.font = 'bold 30px monospace';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 128, 42);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({map:tex, transparent:true});
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3.2,0.8,1);
+  sprite.position.set(x,y,z);
+  return sprite;
+}
+
+function animateThree(){
+  requestAnimationFrame(animateThree);
+  if(autoRotate && !dragging) rotY += 0.0018;
+  group.rotation.y = rotY;
+  if(currentTween) currentTween();
+  renderer.render(scene, camera);
+}
+
+function tweenValue(from, to, duration, onUpdate, onComplete){
+  const start = performance.now();
+  currentTween = function(){
+    const t = Math.min(1, (performance.now()-start)/duration);
+    const eased = t<0.5 ? 2*t*t : -1+(4-2*t)*t;
+    onUpdate(from + (to-from)*eased);
+    if(t>=1){ currentTween=null; if(onComplete) onComplete(); }
+  };
+}
+
+let packetMesh3d = null;
+function spawnPacket3d(from, to, color, duration, size, onComplete){
+  const geo = new THREE.SphereGeometry(size||0.28,16,16);
+  const mat = new THREE.MeshStandardMaterial({color, emissive:color, emissiveIntensity:0.5});
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(from[0],from[1],from[2]);
+  group.add(mesh);
+  const start = performance.now();
+  currentTween = function(){
+    const t = Math.min(1, (performance.now()-start)/duration);
+    mesh.position.set(
+      from[0]+(to[0]-from[0])*t,
+      from[1]+(to[1]-from[1])*t + Math.sin(t*Math.PI)*1.2,
+      from[2]+(to[2]-from[2])*t
+    );
+    if(t>=1){
+      currentTween=null;
+      group.remove(mesh);
+      if(onComplete) onComplete();
+    }
+  };
+}
+
+const clientPos = [-8,1.4,0];
+const dnsPos = [0,3.6,-4];
+const serverPos = [8,2.4,0];
+
+function clearLayers3d(){
+  layerMeshes.forEach(m=>group.remove(m));
+  layerMeshes = [];
+}
+
+function addLayer3d(index, color, label){
+  const geo = new THREE.BoxGeometry(2.4,0.18,1.8);
+  const mat = new THREE.MeshStandardMaterial({color, transparent:true, opacity:0});
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(-8, 1.4+index*0.45, 0);
+  group.add(mesh);
+  layerMeshes.push(mesh);
+  const start = performance.now();
+  const dur = 500;
+  const prevTween = currentTween;
+  currentTween = function(){
+    if(prevTween) prevTween();
+    const t = Math.min(1, (performance.now()-start)/dur);
+    mat.opacity = 0.82*t;
+    if(t>=1 && !prevTween) currentTween=null;
+  };
+}
+
+function playStage3d(i){
+  clearLayers3d();
+  const s = stages8[i];
+  if(i===0){
+    spawnPacket3d(clientPos, dnsPos, 0x0B7C82, 500, 0.25, ()=>{
+      spawnPacket3d(dnsPos, clientPos, 0x0B7C82, 500, 0.25);
+    });
+  } else if(i===1){
+    spawnPacket3d(clientPos, serverPos, 0xB45309, 380, 0.22, ()=>{
+      spawnPacket3d(serverPos, clientPos, 0xB45309, 380, 0.22, ()=>{
+        spawnPacket3d(clientPos, serverPos, 0xB45309, 380, 0.22);
+      });
+    });
+  } else if(i===2){
+    spawnPacket3d(clientPos, serverPos, 0x0B7C82, 600, 0.28);
+  } else if(i===3){
+    // pulse server rack scale
+    let t0 = performance.now();
+    currentTween = function(){
+      const t = (performance.now()-t0)/1200;
+      const s2 = 1 + 0.08*Math.sin(t*Math.PI*4);
+      serverGroup.scale.set(s2,s2,s2);
+      if(t>=1){ serverGroup.scale.set(1,1,1); currentTween=null; }
+    };
+  } else if(i===4){
+    spawnPacket3d(serverPos, clientPos, 0x15803D, 700, 0.36);
+  } else if(i===5){
+    addLayer3d(0, 0x0B7C82, 'DOM');
+    setTimeout(()=>addLayer3d(1, 0xB45309, 'CSSOM'), 250);
+  } else if(i===6){
+    addLayer3d(2, 0x6D28D9, 'Render Tree');
+    setTimeout(()=>addLayer3d(3, 0xC81E3A, 'Layout'), 250);
+    setTimeout(()=>addLayer3d(4, 0x15803D, 'Paint'), 500);
+  } else if(i===7){
+    addLayer3d(5, 0x0F172A, 'Composite');
+  }
+  document.getElementById('caption3d').innerHTML = `
+    <span class="tag" style="background:var(--violet); color:#fff;">STEP ${i+1} / 8</span>
+    <h5>${s.title}</h5><p>${s.desc}</p>`;
+  updateDots(stepDots3d, i);
+}
+
+const stepDots3d = document.getElementById('stepDots3d');
+buildDots(stepDots3d, stages8.length, (i)=>{ stopAutoplay3d(); initThree(); playStage3d(i); });
+
+let autoplay3dTimer = null;
+function stopAutoplay3d(){ if(autoplay3dTimer){ clearInterval(autoplay3dTimer); autoplay3dTimer=null; document.getElementById('play3d').textContent='▶ Play all steps'; } }
+document.getElementById('play3d').addEventListener('click', ()=>{
+  initThree();
+  if(autoplay3dTimer){ stopAutoplay3d(); return; }
+  let i=0;
+  playStage3d(i);
+  document.getElementById('play3d').textContent='⏸ Pause';
+  autoplay3dTimer = setInterval(()=>{
+    i++;
+    if(i>=stages8.length){ stopAutoplay3d(); return; }
+    playStage3d(i);
+  }, 2200);
+});
+document.getElementById('reset3d').addEventListener('click', ()=>{
+  stopAutoplay3d();
+  initThree();
+  clearLayers3d();
+  updateDots(stepDots3d, -1);
+  document.getElementById('caption3d').innerHTML = `<span class="tag" style="background:var(--violet); color:#fff;">STEP 1 / 8</span><h5>Ready when you are</h5><p>Click "Play all steps" or click step 1 below to begin.</p>`;
+});
+
+// init the 3D scene once it scrolls into view / on first interaction for performance
+const threeObserver = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ initThree(); threeObserver.disconnect(); } });
+}, {threshold:0.2});
+threeObserver.observe(document.getElementById('three-container'));
+
+/* ================= ACTIVITY SCORING ================= */
+function wireActivity(containerId, fillId, textId){
+  const container = document.getElementById(containerId);
+  const scenarios = container.querySelectorAll('.scenario');
+  let correctCount = 0;
+  scenarios.forEach(sc=>{
+    const answer = sc.dataset.answer;
+    const btns = sc.querySelectorAll('.choice-btn');
+    const explain = sc.querySelector('.explain');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.classList.contains('disabled')) return;
+        btns.forEach(x=>x.classList.add('disabled'));
+        if(b.dataset.val === answer){ b.classList.add('correct'); correctCount++; }
+        else { b.classList.add('wrong'); btns.forEach(x=>{ if(x.dataset.val===answer) x.classList.add('correct'); }); }
+        explain.classList.add('show');
+        const pct = Math.round(100*correctCount/scenarios.length);
+        document.getElementById(fillId).style.width = pct+'%';
+        document.getElementById(textId).textContent = correctCount+' / '+scenarios.length;
+      });
+    });
+  });
+}
+wireActivity('act1','scoreFill1','scoreText1');
+</script>
+</body>
+</html>

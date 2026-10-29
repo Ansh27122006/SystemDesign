@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Architectural Patterns 04 — Monolith vs Microservices vs Serverless</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#F7F9FC; --panel-2:#E7ECF3; --border:#5C6B84;
+    --text:#0F172A; --muted:#3F4C60;
+    --cyan:#0B7C82; --amber:#B45309; --coral:#C81E3A; --violet:#6D28D9; --green:#15803D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;}
+  ::selection{background:var(--cyan); color:#FFFFFF;}
+  body{
+    background-image:linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size:36px 36px;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding:0 24px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header{padding:52px 0 34px;}
+  .crumb{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:2.5px; color:var(--cyan); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .crumb .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(28px,4.6vw,46px); line-height:1.06; margin-top:14px; letter-spacing:-0.5px;}
+  h1 .hl{color:var(--cyan);}
+  .lead{color:var(--muted); font-size:16px; max-width:700px; margin-top:16px; line-height:1.6;}
+
+  .hero-anim{margin-top:34px; background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:24px; position:relative; box-shadow:0 4px 14px rgba(15,23,42,0.08);}
+  .hero-anim .cap{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .hero-anim .cap::before{content:'▸'; color:var(--cyan);}
+
+  main{padding:10px 0 100px;}
+  section{margin-top:56px;}
+  .sec-eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber);}
+  .sec-title{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:8px;}
+  .sec-desc{color:var(--muted); font-size:15px; margin-top:10px; max-width:720px; line-height:1.65;}
+
+  .trio{display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; margin-top:26px;}
+  @media(max-width:860px){.trio{grid-template-columns:1fr;}}
+  .vcard{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .vcard.mono{border-top:4px solid var(--coral);} .vcard.micro{border-top:4px solid var(--cyan);} .vcard.serverless{border-top:4px solid var(--violet);}
+  .vcard h3{font-family:'Space Grotesk',sans-serif; font-size:18px; margin-bottom:8px;}
+  .vcard.mono h3{color:var(--coral);} .vcard.micro h3{color:var(--cyan);} .vcard.serverless h3{color:var(--violet);}
+  .vcard p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .vcard .metrics-list{margin-top:12px; display:flex; flex-wrap:wrap; gap:6px;}
+  .vcard .metrics-list span{font-family:'JetBrains Mono',monospace; font-size:10.5px; background:var(--panel-2); border:1px solid var(--border); padding:3px 8px; border-radius:6px; color:var(--text);}
+
+  .panel{background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:26px; margin-top:26px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .panel-label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+  .panel-label::before{content:'▸'; color:var(--cyan);}
+  .panel-note{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.6; border-top:1px solid var(--border); padding-top:14px;}
+  .panel-note b{color:var(--text);}
+
+  .controls{display:flex; gap:14px; flex-wrap:wrap; margin-top:20px; align-items:center;}
+  button.btn{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:#FFFFFF; background:var(--cyan); border:none; border-radius:8px; padding:11px 18px; cursor:pointer; transition:transform .15s, opacity .15s;}
+  button.btn:hover{transform:translateY(-1px); opacity:.9;}
+  button.btn.ghost{background:transparent; color:var(--text); border:2px solid var(--border);}
+  button.btn.violet{background:var(--violet);}
+  button.btn.amber{background:var(--amber);}
+  button.btn.coral{background:var(--coral);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+  .toggle-row{display:flex; gap:8px; background:var(--panel-2); border:2px solid var(--border); border-radius:9px; padding:4px; width:fit-content; flex-wrap:wrap;}
+  .toggle-row button{font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 16px; border-radius:6px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-weight:600;}
+  .toggle-row button.active{background:var(--cyan); color:#FFFFFF; font-weight:700;}
+
+  .readout{display:flex; gap:28px; margin-top:18px; flex-wrap:wrap;}
+  .readout .item{font-family:'JetBrains Mono',monospace;}
+  .readout .item .l{font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;}
+  .readout .item .v{font-size:20px; font-weight:700; margin-top:2px;}
+
+  svg text{font-family:'JetBrains Mono',monospace;}
+  .arch-box, .fn-box{transition:all .35s ease;}
+
+  .examples-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:26px;}
+  @media(max-width:760px){.examples-grid{grid-template-columns:1fr;}}
+  .ex-card{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .ex-card .ex-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;}
+  .ex-card h4{font-family:'Space Grotesk',sans-serif; font-size:16.5px; margin-bottom:6px;}
+  .ex-card p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .ex-card .tagrow{margin-top:12px; display:flex; gap:8px;}
+  .ex-card .tagrow span{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;}
+
+  .activity{background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:2px dashed var(--border); border-radius:16px; padding:28px; margin-top:26px;}
+  .activity-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .activity-head .pill{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; background:var(--amber); color:#FFFFFF; padding:3px 9px; border-radius:20px; font-weight:700;}
+  .activity h4{font-family:'Space Grotesk',sans-serif; font-size:19px;}
+  .activity p.instr{color:var(--muted); font-size:14px; margin-top:6px; margin-bottom:20px;}
+  .scenario{border:2px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; background:var(--panel);}
+  .scenario .stext{font-size:14.5px; margin-bottom:12px; line-height:1.55;}
+  .choices{display:flex; gap:10px; flex-wrap:wrap;}
+  .choice-btn{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer; background:var(--panel-2); border:2px solid var(--border); color:var(--text); font-weight:600; transition:all .15s;}
+  .choice-btn:hover{border-color:var(--cyan);}
+  .choice-btn.correct{background:rgba(21,128,61,0.15); border-color:var(--green); color:var(--green);}
+  .choice-btn.wrong{background:rgba(200,30,58,0.13); border-color:var(--coral); color:var(--coral);}
+  .choice-btn.disabled{pointer-events:none;}
+  .explain{display:none; margin-top:12px; font-size:13.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; line-height:1.6;}
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+  .score-bar{display:flex; align-items:center; gap:14px; margin-top:22px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted);}
+  .score-track{flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--border);}
+  .score-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--green)); transition:width .4s;}
+
+  .myth-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+  .myth{background:var(--panel); border:2px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .myth .x{color:var(--coral); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .myth .body b{display:block; font-size:14px; margin-bottom:4px;}
+  .myth .body p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  table.summary{width:100%; border-collapse:collapse; margin-top:20px;}
+  table.summary th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:10px 12px; border-bottom:2px solid var(--border);}
+  table.summary td{padding:11px 12px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+
+  footer{border-top:2px solid var(--border); padding:28px 0; text-align:center; color:var(--muted); font-size:12.5px; font-family:'JetBrains Mono',monospace; margin-top:60px;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="crumb"><span class="dot"></span>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS · 04</div>
+    <h1>Monolith <span class="hl">vs</span> Microservices <span class="hl">vs</span> Serverless</h1>
+    <p class="lead">A third option enters the picture: instead of running servers yourself — one big one (monolith) or many small ones (microservices) — <b>serverless</b> means writing individual functions and letting the cloud provider run them only when needed, for exactly as long as needed.</p>
+
+    <div class="hero-anim">
+      <div class="cap">Opening picture — one building, a street of shops, or pop-up stalls</div>
+      <div class="toggle-row" id="heroToggle">
+        <button data-mode="mono" class="active">Monolith</button>
+        <button data-mode="micro">Microservices</button>
+        <button data-mode="serverless">Serverless</button>
+      </div>
+      <svg id="svgHero" viewBox="0 0 900 240" width="100%" style="max-height:270px; margin-top:16px;"></svg>
+      <p class="panel-note" id="heroNote"><b>Monolith:</b> one building, always open, every department inside, staffed and lit 24/7 whether customers are there or not.</p>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= DEFINITIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">01 · CORE DEFINITIONS</div>
+      <div class="sec-title">Three ways to run the same application</div>
+      <p class="sec-desc">Same features, three very different deployment and operations models.</p>
+
+      <div class="trio">
+        <div class="vcard mono">
+          <h3>Monolith</h3>
+          <p>One codebase, one deployment, servers you provision and keep running continuously — whether traffic is high or zero.</p>
+          <div class="metrics-list"><span>always-on servers</span><span>you manage capacity</span><span>simple ops model</span></div>
+        </div>
+        <div class="vcard micro">
+          <h3>Microservices</h3>
+          <p>Many small services, each with its own servers you provision, running continuously, scaled independently per service.</p>
+          <div class="metrics-list"><span>always-on servers, per service</span><span>you manage capacity, per service</span><span>independent deploys</span></div>
+        </div>
+        <div class="vcard serverless">
+          <h3>Serverless</h3>
+          <p>Individual functions that the cloud provider runs on demand — spun up per request, billed per execution, scaled to zero when idle.</p>
+          <div class="metrics-list"><span>provider manages servers</span><span>pay per invocation</span><span>auto-scales to zero and back</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SIM 1: COST DURING IDLE HOURS ================= -->
+    <section>
+      <div class="sec-eyebrow">02 · ANIMATION</div>
+      <div class="sec-title">What happens to cost at 3am?</div>
+      <p class="sec-desc">Toggle between peak daytime traffic and the middle of the night. Watch which architectures keep paying for capacity even when nobody's using it.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — cost meters across a quiet night vs a busy afternoon</div>
+        <div class="toggle-row" id="timeToggle">
+          <button data-mode="peak" class="active">☀️ Peak — 2:00 PM</button>
+          <button data-mode="idle">🌙 Idle — 3:00 AM</button>
+        </div>
+        <svg id="svgCost" viewBox="0 0 900 220" width="100%" style="max-height:250px; margin-top:16px;"></svg>
+        <div class="readout">
+          <div class="item"><div class="l">Monolith cost/hr</div><div class="v" id="costMono" style="color:var(--coral)">$4.20</div></div>
+          <div class="item"><div class="l">Microservices cost/hr</div><div class="v" id="costMicro" style="color:var(--cyan)">$6.80</div></div>
+          <div class="item"><div class="l">Serverless cost/hr</div><div class="v" id="costServerless" style="color:var(--violet)">$3.10</div></div>
+        </div>
+        <p class="panel-note" id="costNote">Provisioned servers (monolith, microservices) cost roughly the same whether they're busy or empty — you paid for the capacity, so it's running either way. Serverless cost tracks actual usage almost exactly.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 2: COLD START ================= -->
+    <section>
+      <div class="sec-eyebrow">03 · ANIMATION</div>
+      <div class="sec-title">The trade-off serverless makes for that: cold starts</div>
+      <p class="sec-desc">Scaling to zero is great for cost, but it means the very first request after a quiet period has to wait for a new function instance to spin up.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — a request arrives after 10 minutes of silence</div>
+        <svg id="svgCold" viewBox="0 0 900 220" width="100%" style="max-height:250px;"></svg>
+        <div class="controls">
+          <button class="btn" id="sendRequestBtn">▶ Send a request after idle silence</button>
+          <button class="btn ghost" id="coldReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Monolith response</div><div class="v" id="respMono" style="color:var(--coral)">—</div></div>
+          <div class="item"><div class="l">Microservices response</div><div class="v" id="respMicro" style="color:var(--cyan)">—</div></div>
+          <div class="item"><div class="l">Serverless response</div><div class="v" id="respServerless" style="color:var(--violet)">—</div></div>
+        </div>
+        <p class="panel-note">Modern platforms mitigate this (smaller runtimes, "provisioned concurrency" to keep a few instances warm), but the fundamental trade-off remains: scale-to-zero savings come with an occasional cold-start tax.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 3: TRAFFIC SPIKE SCALING ================= -->
+    <section>
+      <div class="sec-eyebrow">04 · ANIMATION</div>
+      <div class="sec-title">A 20× traffic spike hits all three at once</div>
+      <p class="sec-desc">Picture a link going viral at 9am. Watch how each architecture responds to the exact same spike.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — Black Friday-style traffic spike</div>
+        <svg id="svgSpike" viewBox="0 0 900 260" width="100%" style="max-height:290px;"></svg>
+        <div class="controls">
+          <button class="btn coral" id="spikeBtn">⚡ Trigger 20× traffic spike</button>
+          <button class="btn ghost" id="spikeReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Monolith</div><div class="v" id="spikeMono" style="color:var(--coral)">1 instance</div></div>
+          <div class="item"><div class="l">Microservices (hot service)</div><div class="v" id="spikeMicro" style="color:var(--cyan)">1 instance</div></div>
+          <div class="item"><div class="l">Serverless</div><div class="v" id="spikeServerless" style="color:var(--violet)">0 running</div></div>
+        </div>
+        <p class="panel-note" id="spikeNote">Click the button and compare how far — and how automatically — each one scales.</p>
+      </div>
+    </section>
+
+    <!-- ================= REAL WORLD EXAMPLES ================= -->
+    <section>
+      <div class="sec-eyebrow">05 · REAL-WORLD EXAMPLES</div>
+      <div class="sec-title">Where serverless specifically earns its keep</div>
+      <div class="examples-grid">
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(109,40,217,0.14); color:var(--violet);">🖼️</div>
+          <h4>Image thumbnails on upload (AWS Lambda + S3)</h4>
+          <p>A classic serverless pattern: a function triggers automatically whenever a file lands in storage, resizes it, and disappears — no server sits around waiting for uploads that might happen once an hour or a thousand times a minute.</p>
+          <div class="tagrow"><span style="background:rgba(109,40,217,0.14); color:var(--violet);">EVENT-TRIGGERED</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(11,124,130,0.14); color:var(--cyan);">🥤</div>
+          <h4>Coca-Cola's vending machines</h4>
+          <p>Coca-Cola moved vending machine payment processing to AWS Lambda — a widely cited real case study — because machine traffic is naturally bursty and unpredictable, exactly the shape serverless billing is built for.</p>
+          <div class="tagrow"><span style="background:rgba(11,124,130,0.14); color:var(--cyan);">BURSTY WORKLOAD</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(180,83,9,0.14); color:var(--amber);">🎬</div>
+          <h4>Netflix's media processing pipeline</h4>
+          <p>Netflix uses serverless functions for parts of its video encoding pipeline, where individual processing jobs are short, numerous, and highly parallel — a good match for functions that spin up, do one job, and disappear.</p>
+          <div class="tagrow"><span style="background:rgba(180,83,9,0.14); color:var(--amber);">PARALLEL JOBS</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(200,30,58,0.14); color:var(--coral);">🧾</div>
+          <h4>Seasonal, spiky businesses</h4>
+          <p>Tax-filing software sees enormous traffic in the weeks before a filing deadline and near-zero the rest of the year — provisioning servers to handle peak load means paying for idle capacity most of the year, exactly what serverless avoids.</p>
+          <div class="tagrow"><span style="background:rgba(200,30,58,0.14); color:var(--coral);">SEASONAL SPIKES</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MISCONCEPTIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">06 · COMMON CONFUSIONS</div>
+      <div class="sec-title">What students usually get wrong</div>
+      <div class="myth-list">
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Serverless means there are no servers."</b><p>There are absolutely still servers — you just don't manage, patch, or provision them. The cloud provider owns that responsibility instead.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Serverless is always cheaper."</b><p>For steady, high, predictable traffic, an always-on server can be significantly cheaper than paying per invocation at scale. Serverless wins specifically for spiky or unpredictable workloads.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Serverless just means AWS Lambda / functions."</b><p>Functions-as-a-Service (Lambda, Cloud Functions) are the most visible example, but "serverless" more broadly includes any managed service that scales automatically without you provisioning servers — managed databases, object storage, and more.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section>
+      <div class="sec-eyebrow">07 · IN-CLASS ACTIVITY</div>
+      <div class="sec-title">Pick the best fit</div>
+      <div class="activity" id="act1">
+        <div class="activity-head"><span class="pill">GRADED</span></div>
+        <h4>Monolith, Microservices, or Serverless?</h4>
+        <p class="instr">For each scenario, choose the architecture that fits best.</p>
+
+        <div class="scenario" data-answer="mono">
+          <div class="stext">1. A 3-person team validating a brand-new product idea, aiming to ship an MVP in a few weeks.</div>
+          <div class="choices"><button class="choice-btn" data-val="mono">Monolith</button><button class="choice-btn" data-val="micro">Microservices</button><button class="choice-btn" data-val="serverless">Serverless</button></div>
+          <div class="explain">Best fit: <b>Monolith</b>. Maximum speed, minimum operational complexity, and no need yet for independent scaling or deploys.</div>
+        </div>
+
+        <div class="scenario" data-answer="serverless">
+          <div class="stext">2. A function that resizes a user's profile photo whenever they upload one — maybe 5 times a minute, maybe zero for hours.</div>
+          <div class="choices"><button class="choice-btn" data-val="mono">Monolith</button><button class="choice-btn" data-val="micro">Microservices</button><button class="choice-btn" data-val="serverless">Serverless</button></div>
+          <div class="explain">Best fit: <b>Serverless</b>. Wildly unpredictable, event-triggered, short-lived work is exactly the pattern serverless billing and scaling were designed for.</div>
+        </div>
+
+        <div class="scenario" data-answer="micro">
+          <div class="stext">3. A 300-engineer company where 30 teams each need to own, deploy, and scale their part of the product independently, with sustained heavy traffic 24/7.</div>
+          <div class="choices"><button class="choice-btn" data-val="mono">Monolith</button><button class="choice-btn" data-val="micro">Microservices</button><button class="choice-btn" data-val="serverless">Serverless</button></div>
+          <div class="explain">Best fit: <b>Microservices</b>. Large team count needing independent ownership, plus sustained (not spiky) heavy load, is the classic microservices sweet spot — provisioned capacity is well-utilized here, not wasted.</div>
+        </div>
+
+        <div class="scenario" data-answer="serverless">
+          <div class="stext">4. A tax-filing startup that sees 95% of its yearly traffic packed into the three weeks before the filing deadline.</div>
+          <div class="choices"><button class="choice-btn" data-val="mono">Monolith</button><button class="choice-btn" data-val="micro">Microservices</button><button class="choice-btn" data-val="serverless">Serverless</button></div>
+          <div class="explain">Best fit: <b>Serverless</b>. Provisioning enough servers for peak season means paying for mostly-idle capacity the other 49 weeks of the year — auto-scaling, pay-per-use serverless avoids that entirely.</div>
+        </div>
+
+        <div class="score-bar"><span>SCORE</span><div class="score-track"><div class="score-fill" id="scoreFill1"></div></div><span id="scoreText1">0 / 4</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SUMMARY ================= -->
+    <section>
+      <div class="sec-eyebrow">08 · SUMMARY</div>
+      <div class="sec-title">Quick reference</div>
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Aspect</th><th style="color:var(--coral)">Monolith</th><th style="color:var(--cyan)">Microservices</th><th style="color:var(--violet)">Serverless</th></tr>
+          <tr><td>Who manages servers</td><td>You</td><td>You, per service</td><td>The cloud provider</td></tr>
+          <tr><td>Billing model</td><td>Pay for provisioned capacity</td><td>Pay for provisioned capacity, per service</td><td>Pay per invocation/execution</td></tr>
+          <tr><td>Idle cost</td><td>Full cost, even at zero traffic</td><td>Full cost per service, even at zero traffic</td><td>Near $0 at zero traffic</td></tr>
+          <tr><td>Scaling</td><td>Duplicate the whole app</td><td>Scale the hot service</td><td>Automatic, per request</td></tr>
+          <tr><td>Cold starts</td><td>None — always warm</td><td>None — always warm</td><td>Possible after idle periods</td></tr>
+          <tr><td>Best for</td><td>Small teams, early products</td><td>Large orgs, sustained heavy load</td><td>Spiky, unpredictable, event-driven work</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS 04 / 05 · Monolith vs Microservices vs Serverless · reduced-motion friendly</footer>
+
+<script>
+function colorOf(v){ const t=document.createElement('div'); t.style.color=v; document.body.appendChild(t); const c=getComputedStyle(t).color; t.remove(); return c; }
+
+/* ================= HERO TOGGLE ================= */
+const svgHero = document.getElementById('svgHero');
+let heroMode = 'mono';
+const heroNotes = {
+  mono: '<b>Monolith:</b> one building, always open, every department inside, staffed and lit 24/7 whether customers are there or not.',
+  micro: '<b>Microservices:</b> a street of independently owned shops, each open on its own schedule, each paying its own rent whether customers show up or not.',
+  serverless: '<b>Serverless:</b> pop-up stalls that materialize the instant a customer walks up, and vanish the moment they leave — you only pay for the seconds a stall actually existed.'
+};
+function renderHero(){
+  let svg='';
+  if(heroMode==='mono'){
+    svg += `<rect x="350" y="50" width="200" height="150" rx="10" fill="var(--panel-2)" stroke="var(--coral)" stroke-width="3"/>`;
+    svg += `<text x="450" y="130" fill="var(--coral)" font-size="13" text-anchor="middle" font-weight="700">ONE BUILDING</text>`;
+    svg += `<text x="450" y="150" fill="var(--muted)" font-size="10" text-anchor="middle">lit 24/7</text>`;
+    for(let i=0;i<3;i++){
+      svg += `<circle cx="${380+i*60}" cy="70" r="5" fill="var(--amber)"/>`;
+    }
+  } else if(heroMode==='micro'){
+    const shops=['ORDERS','PAYMENTS','INVENTORY'];
+    shops.forEach((s,i)=>{
+      const x=200+i*220;
+      svg += `<rect x="${x}" y="70" width="170" height="110" rx="9" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="2.5"/>`;
+      svg += `<text x="${x+85}" y="120" fill="var(--cyan)" font-size="11.5" text-anchor="middle" font-weight="700">${s}</text>`;
+      svg += `<text x="${x+85}" y="140" fill="var(--muted)" font-size="9.5" text-anchor="middle">own lease, 24/7</text>`;
+    });
+  } else {
+    for(let i=0;i<4;i++){
+      const x = 140+i*170;
+      const visible = i%2===0;
+      svg += `<rect x="${x}" y="${visible?70:110}" width="120" height="${visible?80:40}" rx="8" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2.5" opacity="${visible?1:0.35}"/>`;
+      svg += `<text x="${x+60}" y="${visible?115:132}" fill="var(--violet)" font-size="10" text-anchor="middle" font-weight="700">${visible?'ACTIVE':'gone'}</text>`;
+    }
+    svg += `<text x="450" y="200" fill="var(--muted)" font-size="10.5" text-anchor="middle">stalls appear only while a request is being handled</text>`;
+  }
+  svgHero.innerHTML = svg;
+  document.getElementById('heroNote').innerHTML = heroNotes[heroMode];
+}
+document.getElementById('heroToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#heroToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  heroMode = btn.dataset.mode;
+  renderHero();
+});
+renderHero();
+
+/* ================= COST DURING IDLE HOURS ================= */
+const svgCost = document.getElementById('svgCost');
+let timeMode = 'peak';
+function renderCost(){
+  const isPeak = timeMode==='peak';
+  let svg='';
+  const archs = [
+    {label:'MONOLITH', color:'var(--coral)', x:60, cost: isPeak? '$4.20/hr':'$4.20/hr', running:true},
+    {label:'MICROSERVICES', color:'var(--cyan)', x:380, cost: isPeak? '$6.80/hr':'$6.80/hr', running:true},
+    {label:'SERVERLESS', color:'var(--violet)', x:700, cost: isPeak? '$3.10/hr':'$0.02/hr', running:isPeak},
+  ];
+  archs.forEach(a=>{
+    svg += `<rect x="${a.x}" y="30" width="160" height="150" rx="12" fill="var(--panel-2)" stroke="${a.color}" stroke-width="2.5"/>`;
+    svg += `<text x="${a.x+80}" y="60" fill="${a.color}" font-size="11.5" text-anchor="middle" font-weight="700">${a.label}</text>`;
+    if(a.running){
+      svg += `<circle cx="${a.x+80}" cy="100" r="22" fill="${a.color}" opacity="0.25"/>`;
+      svg += `<text x="${a.x+80}" y="105" fill="${a.color}" font-size="10" text-anchor="middle" font-weight="700">RUNNING</text>`;
+    } else {
+      svg += `<circle cx="${a.x+80}" cy="100" r="22" fill="none" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"/>`;
+      svg += `<text x="${a.x+80}" y="105" fill="var(--muted)" font-size="9.5" text-anchor="middle">SCALED TO 0</text>`;
+    }
+    svg += `<text x="${a.x+80}" y="155" fill="var(--text)" font-size="13" text-anchor="middle" font-weight="700">${a.cost}</text>`;
+  });
+  svgCost.innerHTML = svg;
+  document.getElementById('costMono').textContent = '$4.20';
+  document.getElementById('costMicro').textContent = '$6.80';
+  document.getElementById('costServerless').textContent = isPeak ? '$3.10' : '$0.02';
+  document.getElementById('costNote').innerHTML = isPeak
+    ? 'At 2pm, all three are earning their keep — traffic is high, and everyone\'s paying roughly proportional to usage.'
+    : '<b>At 3am, only serverless cost actually drops.</b> The monolith and microservices servers are still fully provisioned and billed, whether or not a single request comes in — that\'s the cost of "always warm."';
+}
+document.getElementById('timeToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#timeToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  timeMode = btn.dataset.mode;
+  renderCost();
+});
+renderCost();
+
+/* ================= COLD START ================= */
+const svgCold = document.getElementById('svgCold');
+function buildColdBase(){
+  let svg='';
+  const rows = [
+    {label:'Monolith', y:30, color:'var(--coral)'},
+    {label:'Microservices', y:90, color:'var(--cyan)'},
+    {label:'Serverless', y:150, color:'var(--violet)'},
+  ];
+  rows.forEach(r=>{
+    svg += `<text x="20" y="${r.y+18}" fill="${r.color}" font-size="11" font-weight="700">${r.label}</text>`;
+    svg += `<rect x="180" y="${r.y}" width="680" height="30" rx="6" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2"/>`;
+    svg += `<rect id="coldbar-${r.label}" x="180" y="${r.y}" width="0" height="30" rx="6" fill="${r.color}" opacity="0.5"/>`;
+  });
+  svgCold.innerHTML = svg;
+}
+buildColdBase();
+document.getElementById('sendRequestBtn').addEventListener('click', ()=>{
+  buildColdBase();
+  ['respMono','respMicro','respServerless'].forEach(id=>{ document.getElementById(id).textContent='...'; });
+  // monolith: instant
+  setTimeout(()=>{
+    document.getElementById('coldbar-Monolith').setAttribute('width','40');
+    document.getElementById('respMono').textContent='~8ms';
+  }, 100);
+  // microservices: instant
+  setTimeout(()=>{
+    document.getElementById('coldbar-Microservices').setAttribute('width','60');
+    document.getElementById('respMicro').textContent='~25ms';
+  }, 150);
+  // serverless: cold start delay
+  let w=0;
+  const timer = setInterval(()=>{
+    w += 40;
+    document.getElementById('coldbar-Serverless').setAttribute('width', Math.min(w,650));
+    if(w>=650){
+      clearInterval(timer);
+      document.getElementById('respServerless').textContent='~1,400ms (cold start)';
+    }
+  }, 60);
+});
+document.getElementById('coldReset').addEventListener('click', ()=>{
+  buildColdBase();
+  ['respMono','respMicro','respServerless'].forEach(id=>{ document.getElementById(id).textContent='—'; });
+});
+
+/* ================= TRAFFIC SPIKE ================= */
+const svgSpike = document.getElementById('svgSpike');
+function buildSpikeBase(monoN, microN, svN){
+  let svg='';
+  function drawGroup(x, label, color, n, maxShow){
+    svg += `<text x="${x+90}" y="20" fill="${color}" font-size="11.5" text-anchor="middle" font-weight="700">${label}</text>`;
+    const shown = Math.min(n, maxShow);
+    for(let i=0;i<shown;i++){
+      const col = i % 6;
+      const row = Math.floor(i/6);
+      svg += `<rect class="arch-box" x="${x+col*30}" y="${35+row*26}" width="24" height="20" rx="4" fill="${color}" opacity="0.7"/>`;
+    }
+    if(n>maxShow){
+      svg += `<text x="${x+90}" y="${35+Math.ceil(maxShow/6)*26+14}" fill="${color}" font-size="10" text-anchor="middle">+${n-maxShow} more</text>`;
+    }
+  }
+  drawGroup(30, 'MONOLITH', colorOf('var(--coral)'), monoN, 12);
+  drawGroup(330, 'MICROSERVICES (Search)', colorOf('var(--cyan)'), microN, 12);
+  drawGroup(630, 'SERVERLESS', colorOf('var(--violet)'), svN, 18);
+  svgSpike.innerHTML = svg;
+}
+buildSpikeBase(1,1,0);
+document.getElementById('spikeBtn').addEventListener('click', ()=>{
+  let t=0;
+  const timer = setInterval(()=>{
+    t++;
+    const monoN = Math.min(3, 1+Math.floor(t/3));
+    const microN = Math.min(8, 1+t);
+    const svN = Math.min(60, t*8);
+    buildSpikeBase(monoN, microN, svN);
+    document.getElementById('spikeMono').textContent = monoN+' instance'+(monoN>1?'s':'')+' (slow, costly to add)';
+    document.getElementById('spikeMicro').textContent = microN+' instances (fast, targeted)';
+    document.getElementById('spikeServerless').textContent = svN+' concurrent (instant, automatic)';
+    if(t>=8){
+      clearInterval(timer);
+      document.getElementById('spikeNote').innerHTML = '<b>Result:</b> the monolith could only afford a few full copies (expensive to duplicate everything). Microservices scaled just the Search service quickly. Serverless scaled to dozens of concurrent invocations automatically, with zero capacity planning — but every one of those invocations is billed individually.';
+    }
+  }, 220);
+});
+document.getElementById('spikeReset').addEventListener('click', ()=>{
+  buildSpikeBase(1,1,0);
+  document.getElementById('spikeMono').textContent='1 instance';
+  document.getElementById('spikeMicro').textContent='1 instance';
+  document.getElementById('spikeServerless').textContent='0 running';
+  document.getElementById('spikeNote').textContent='Click the button and compare how far — and how automatically — each one scales.';
+});
+
+/* ================= ACTIVITY SCORING ================= */
+function wireActivity(containerId, fillId, textId){
+  const container = document.getElementById(containerId);
+  const scenarios = container.querySelectorAll('.scenario');
+  let correctCount = 0;
+  scenarios.forEach(sc=>{
+    const answer = sc.dataset.answer;
+    const btns = sc.querySelectorAll('.choice-btn');
+    const explain = sc.querySelector('.explain');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.classList.contains('disabled')) return;
+        btns.forEach(x=>x.classList.add('disabled'));
+        if(b.dataset.val === answer){ b.classList.add('correct'); correctCount++; }
+        else { b.classList.add('wrong'); btns.forEach(x=>{ if(x.dataset.val===answer) x.classList.add('correct'); }); }
+        explain.classList.add('show');
+        const pct = Math.round(100*correctCount/scenarios.length);
+        document.getElementById(fillId).style.width = pct+'%';
+        document.getElementById(textId).textContent = correctCount+' / '+scenarios.length;
+      });
+    });
+  });
+}
+wireActivity('act1','scoreFill1','scoreText1');
+</script>
+</body>
+</html>

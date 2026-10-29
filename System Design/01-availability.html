@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Availability — System Design Characteristics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220;
+    --panel:#121B2E;
+    --panel-2:#0F1729;
+    --border:#22304A;
+    --amber:#F5A623;
+    --teal:#2DD4BF;
+    --red:#EF4444;
+    --text:#E7ECF3;
+    --muted:#8996AC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(245,166,35,0.08), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 110%, rgba(45,212,191,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:32px 20px 64px;
+  }
+  .wrap{max-width:980px;margin:0 auto;}
+
+  /* header */
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    color:var(--teal);
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:clamp(32px,5vw,44px);
+    margin:0 0 10px;
+    letter-spacing:-0.02em;
+  }
+  .sub{color:var(--muted);max-width:640px;line-height:1.55;font-size:15px;margin-bottom:28px;}
+
+  /* status strip - signature element */
+  .status-strip{
+    display:flex;align-items:center;gap:14px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 18px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+  }
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+  .dot.pulse{animation:pulse 1.6s ease-in-out infinite;}
+  .dot.down{background:var(--red);}
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,0.5);}
+    50%{box-shadow:0 0 0 6px rgba(245,166,35,0);}
+  }
+  .status-strip .label{color:var(--muted);}
+  .status-strip .val{color:var(--text);font-weight:600;}
+  .status-strip .sep{width:1px;height:16px;background:var(--border);}
+  .status-strip .status-text{font-weight:600;}
+  .status-strip .status-text.up{color:var(--amber);}
+  .status-strip .status-text.down{color:var(--red);}
+
+  /* stage */
+  .stage{
+    position:relative;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    height:340px;
+    margin-bottom:22px;
+    overflow:hidden;
+  }
+  .stage svg{position:absolute;inset:0;width:100%;height:100%;}
+  .node{
+    position:absolute;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    z-index:2;
+  }
+  .node .box{
+    width:56px;height:56px;border-radius:10px;
+    background:var(--panel-2);
+    border:1.5px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;
+    margin-bottom:6px;
+    transition:all .25s ease;
+  }
+  .client .box{border-color:var(--teal);color:var(--teal);}
+  .lb .box{border-color:var(--muted);color:var(--text);}
+  .server .box{
+    cursor:pointer;
+    color:var(--amber);
+    border-color:var(--amber);
+    box-shadow:0 0 0 0 rgba(245,166,35,0.35);
+  }
+  .server.up .box:hover{transform:scale(1.06);box-shadow:0 0 16px rgba(245,166,35,0.25);}
+  .server.down .box{
+    color:var(--red);
+    border-color:var(--red);
+    background:rgba(239,68,68,0.08);
+  }
+  .server .tag{color:var(--text);}
+  .server.down .tag{color:var(--red);}
+  .hint{position:absolute;bottom:10px;left:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);z-index:2;}
+
+  .packet{
+    position:absolute;
+    width:6px;height:6px;border-radius:50%;
+    background:var(--teal);
+    z-index:1;
+    pointer-events:none;
+    box-shadow:0 0 6px rgba(45,212,191,0.8);
+  }
+  .packet.fail{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,0.8);}
+
+  /* controls */
+  .controls{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    margin-bottom:22px;
+  }
+  .switch-row{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);}
+  .switch{
+    width:42px;height:24px;border-radius:20px;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    position:relative;cursor:pointer;
+    flex-shrink:0;
+    transition:background .2s;
+  }
+  .switch::after{
+    content:'';position:absolute;top:2px;left:2px;
+    width:18px;height:18px;border-radius:50%;
+    background:var(--muted);
+    transition:all .2s;
+  }
+  .switch.on{background:rgba(245,166,35,0.15);border-color:var(--amber);}
+  .switch.on::after{left:20px;background:var(--amber);}
+  button{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    background:transparent;
+    color:var(--text);
+    border:1px solid var(--border);
+    padding:9px 16px;
+    border-radius:8px;
+    cursor:pointer;
+    transition:border-color .2s,color .2s;
+  }
+  button:hover{border-color:var(--teal);color:var(--teal);}
+
+  /* metrics */
+  .metrics{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    border-radius:12px;
+    overflow:hidden;
+    margin-bottom:28px;
+  }
+  .metric{background:var(--panel);padding:16px 18px;}
+  .metric .m-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:8px;
+  }
+  .metric .m-val{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:26px;font-weight:600;
+  }
+  .metric .m-val.accent{color:var(--amber);}
+  .metric .m-val.danger{color:var(--red);}
+
+  /* nines table */
+  h2{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:20px;margin:0 0 4px;
+  }
+  .section-sub{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.5;}
+  table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  th{
+    text-align:left;color:var(--muted);font-weight:500;
+    font-size:11px;letter-spacing:0.06em;text-transform:uppercase;
+    padding:10px 12px;border-bottom:1px solid var(--border);
+  }
+  td{padding:11px 12px;border-bottom:1px solid var(--border);}
+  tr.highlight td{background:rgba(245,166,35,0.08);color:var(--amber);font-weight:600;}
+  .note{
+    margin-top:28px;padding:16px 18px;
+    background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--teal);
+    border-radius:8px;font-size:14px;line-height:1.6;color:var(--text);
+  }
+  .note b{color:var(--teal);}
+  @media (prefers-reduced-motion: reduce){
+    .dot.pulse{animation:none;}
+    .packet{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">System Design Characteristics · 01 / 07</div>
+  <h1>Availability</h1>
+  <p class="sub">The percentage of time a system is operational and able to serve requests. Toggle servers off to simulate failure, and switch redundancy on or off to see why availability is an architecture decision, not a hope.</p>
+
+  <div class="status-strip">
+    <span class="dot pulse" id="statusDot"></span>
+    <span class="status-text up" id="statusText">OPERATIONAL</span>
+    <span class="sep"></span>
+    <span class="label">Availability&nbsp;</span><span class="val" id="availVal">100.000%</span>
+    <span class="sep"></span>
+    <span class="label">Elapsed&nbsp;</span><span class="val" id="elapsedVal">0s</span>
+    <span class="sep"></span>
+    <span class="label">Downtime&nbsp;</span><span class="val" id="downtimeVal">0.0s</span>
+  </div>
+
+  <div class="stage" id="stage">
+    <svg id="lines"></svg>
+    <div class="hint">click a server to take it down / bring it back up</div>
+  </div>
+
+  <div class="controls">
+    <div class="switch-row">
+      <div class="switch" id="redundancySwitch"></div>
+      <span>Redundant mode (multiple servers)</span>
+    </div>
+    <button id="resetBtn">Reset simulation</button>
+    <button id="killAllBtn">Take all servers down</button>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="m-label">Requests sent</div>
+      <div class="m-val" id="reqSent">0</div>
+    </div>
+    <div class="metric">
+      <div class="m-label">Requests failed</div>
+      <div class="m-val danger" id="reqFailed">0</div>
+    </div>
+    <div class="metric">
+      <div class="m-label">Servers healthy</div>
+      <div class="m-val accent" id="serversUp">4 / 4</div>
+    </div>
+    <div class="metric">
+      <div class="m-label">Closest nines tier</div>
+      <div class="m-val accent" id="ninesTier">—</div>
+    </div>
+  </div>
+
+  <h2>The "nines" of availability</h2>
+  <p class="section-sub">Availability is usually promised as a number of nines. Each extra nine is a much harder engineering problem — it shrinks tolerable downtime by 10x. Your live session's tier is highlighted below.</p>
+  <table id="ninesTable">
+    <thead><tr><th>Availability</th><th>Downtime / year</th><th>Downtime / day</th></tr></thead>
+    <tbody>
+      <tr data-tier="90"><td>90% ("one nine")</td><td>36.5 days</td><td>2.4 hours</td></tr>
+      <tr data-tier="99"><td>99% ("two nines")</td><td>3.65 days</td><td>14.4 minutes</td></tr>
+      <tr data-tier="99.9"><td>99.9% ("three nines")</td><td>8.76 hours</td><td>1.44 minutes</td></tr>
+      <tr data-tier="99.99"><td>99.99% ("four nines")</td><td>52.6 minutes</td><td>8.6 seconds</td></tr>
+      <tr data-tier="99.999"><td>99.999% ("five nines")</td><td>5.26 minutes</td><td>0.86 seconds</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Why redundancy matters:</b> with one server, any failure is a full outage — availability collapses to 0% the moment it goes down. With several servers behind a load balancer, one failure just reduces capacity; traffic reroutes to the survivors and availability barely moves. Turn off "Redundant mode" and kill the single server to see the difference instantly.
+  </div>
+</div>
+
+<script>
+const stage = document.getElementById('stage');
+const linesSvg = document.getElementById('lines');
+const redundancySwitch = document.getElementById('redundancySwitch');
+
+let redundant = true;
+let servers = []; // {id, up, el, x, y}
+let clientPos, lbPos;
+let running = true;
+
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const availVal = document.getElementById('availVal');
+const elapsedVal = document.getElementById('elapsedVal');
+const downtimeVal = document.getElementById('downtimeVal');
+const reqSentEl = document.getElementById('reqSent');
+const reqFailedEl = document.getElementById('reqFailed');
+const serversUpEl = document.getElementById('serversUp');
+const ninesTierEl = document.getElementById('ninesTier');
+
+let startTime = performance.now();
+let downtimeMs = 0;
+let lastFrameTime = startTime;
+let allDownSince = null;
+let reqSent = 0, reqFailed = 0;
+
+function buildStage(){
+  stage.querySelectorAll('.node').forEach(n=>n.remove());
+  linesSvg.innerHTML = '';
+
+  const w = stage.clientWidth, h = stage.clientHeight;
+  clientPos = {x: 60, y: h/2};
+  lbPos = {x: w*0.42, y: h/2};
+
+  const client = document.createElement('div');
+  client.className = 'node client';
+  client.style.left = (clientPos.x-28)+'px';
+  client.style.top = (clientPos.y-38)+'px';
+  client.innerHTML = '<div class="box">◆</div><div class="tag">client</div>';
+  stage.appendChild(client);
+
+  const lb = document.createElement('div');
+  lb.className = 'node lb';
+  lb.style.left = (lbPos.x-28)+'px';
+  lb.style.top = (lbPos.y-38)+'px';
+  lb.innerHTML = '<div class="box">⇄</div><div class="tag">load balancer</div>';
+  stage.appendChild(lb);
+
+  const count = redundant ? 4 : 1;
+  servers = [];
+  const sx = w*0.78;
+  const spacing = Math.min(70, (h-40)/count);
+  const startY = h/2 - (spacing*(count-1))/2;
+
+  for(let i=0;i<count;i++){
+    const y = startY + i*spacing;
+    const el = document.createElement('div');
+    el.className = 'node server up';
+    el.style.left = (sx-28)+'px';
+    el.style.top = (y-38)+'px';
+    el.innerHTML = `<div class="box">▣</div><div class="tag">srv ${i+1}</div>`;
+    el.addEventListener('click', ()=>toggleServer(i));
+    stage.appendChild(el);
+    servers.push({id:i, up:true, el, x:sx, y});
+  }
+  drawLines();
+}
+
+function drawLines(){
+  linesSvg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  function line(x1,y1,x2,y2,color){
+    const l = document.createElementNS(ns,'line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);
+    l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    l.setAttribute('stroke',color);
+    l.setAttribute('stroke-width','1.5');
+    l.setAttribute('stroke-dasharray','4 4');
+    l.setAttribute('opacity','0.35');
+    linesSvg.appendChild(l);
+  }
+  line(clientPos.x, clientPos.y, lbPos.x, lbPos.y, '#8996AC');
+  servers.forEach(s=>{
+    line(lbPos.x, lbPos.y, s.x, s.y, s.up ? '#F5A623' : '#EF4444');
+  });
+}
+
+function toggleServer(i){
+  servers[i].up = !servers[i].up;
+  const s = servers[i];
+  s.el.classList.toggle('up', s.up);
+  s.el.classList.toggle('down', !s.up);
+  drawLines();
+  updateServerCount();
+}
+
+function killAll(){
+  servers.forEach(s=>{
+    s.up = false;
+    s.el.classList.remove('up');
+    s.el.classList.add('down');
+  });
+  drawLines();
+  updateServerCount();
+}
+
+function updateServerCount(){
+  const up = servers.filter(s=>s.up).length;
+  serversUpEl.textContent = `${up} / ${servers.length}`;
+}
+
+redundancySwitch.addEventListener('click', ()=>{
+  redundant = !redundant;
+  redundancySwitch.classList.toggle('on', redundant);
+  buildStage();
+  updateServerCount();
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  startTime = performance.now();
+  downtimeMs = 0;
+  allDownSince = null;
+  reqSent = 0; reqFailed = 0;
+  buildStage();
+  updateServerCount();
+});
+
+document.getElementById('killAllBtn').addEventListener('click', killAll);
+
+function spawnPacket(){
+  const healthyServers = servers.filter(s=>s.up);
+  const targetServer = healthyServers.length
+    ? healthyServers[Math.floor(Math.random()*healthyServers.length)]
+    : servers[Math.floor(Math.random()*Math.max(servers.length,1))];
+
+  reqSent++;
+  const success = healthyServers.length > 0;
+  if(!success) reqFailed++;
+  reqSentEl.textContent = reqSent;
+  reqFailedEl.textContent = reqFailed;
+
+  const packet = document.createElement('div');
+  packet.className = 'packet' + (success ? '' : ' fail');
+  stage.appendChild(packet);
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur1 = reduceMotion ? 0 : 260;
+  const dur2 = reduceMotion ? 0 : 300;
+
+  packet.style.left = (clientPos.x-3)+'px';
+  packet.style.top = (clientPos.y-3)+'px';
+  packet.style.transition = `left ${dur1}ms linear, top ${dur1}ms linear`;
+
+  requestAnimationFrame(()=>{
+    packet.style.left = (lbPos.x-3)+'px';
+    packet.style.top = (lbPos.y-3)+'px';
+  });
+
+  setTimeout(()=>{
+    if(!success){
+      packet.style.opacity = '0';
+      setTimeout(()=>packet.remove(), 200);
+      return;
+    }
+    packet.style.transition = `left ${dur2}ms linear, top ${dur2}ms linear`;
+    requestAnimationFrame(()=>{
+      packet.style.left = (targetServer.x-3)+'px';
+      packet.style.top = (targetServer.y-3)+'px';
+    });
+    setTimeout(()=>{
+      packet.style.opacity='0';
+      setTimeout(()=>packet.remove(), 200);
+    }, dur2);
+  }, dur1);
+}
+
+function nearestTier(pct){
+  const tiers = [90,99,99.9,99.99,99.999];
+  let best = tiers[0];
+  tiers.forEach(t=>{ if(pct >= t) best = t; });
+  if(pct < 90) return null;
+  return best;
+}
+
+function frame(now){
+  const dt = now - lastFrameTime;
+  lastFrameTime = now;
+
+  const anyUp = servers.some(s=>s.up);
+  if(!anyUp){
+    downtimeMs += dt;
+    statusDot.classList.add('down');
+    statusDot.classList.remove('pulse');
+    statusText.textContent = 'DOWN';
+    statusText.classList.remove('up');
+    statusText.classList.add('down');
+  } else {
+    statusDot.classList.remove('down');
+    statusDot.classList.add('pulse');
+    statusText.textContent = 'OPERATIONAL';
+    statusText.classList.add('up');
+    statusText.classList.remove('down');
+  }
+
+  const elapsedMs = now - startTime;
+  const elapsedS = elapsedMs/1000;
+  const downtimeS = downtimeMs/1000;
+  const avail = elapsedMs > 0 ? ((elapsedMs - downtimeMs)/elapsedMs)*100 : 100;
+
+  elapsedVal.textContent = elapsedS.toFixed(1)+'s';
+  downtimeVal.textContent = downtimeS.toFixed(1)+'s';
+  availVal.textContent = avail.toFixed(3)+'%';
+
+  const tier = nearestTier(avail);
+  ninesTierEl.textContent = tier ? tier+'%' : '< 90%';
+
+  document.querySelectorAll('#ninesTable tr').forEach(tr=>{
+    tr.classList.toggle('highlight', tr.dataset.tier == String(tier));
+  });
+
+  requestAnimationFrame(frame);
+}
+
+buildStage();
+updateServerCount();
+redundancySwitch.classList.add('on');
+requestAnimationFrame(frame);
+setInterval(spawnPacket, 450);
+window.addEventListener('resize', buildStage);
+</script>
+</body>
+</html>

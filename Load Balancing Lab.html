@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Load Balancing Lab</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f5fa;--panel:#fff;--ink:#14213d;--mute:#58647f;--line:#d6dcea;--soft:#eaeef7;--good:#1b8f4f;--bad:#d1384b;--warn:#d9830b;--probe:#7a4fd8;
+--c1:#2f6fed;--c2:#1b8f4f;--c3:#d9830b;--c4:#8b46d6;--c5:#d1384b;--c6:#0f8f8a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--bad:#ff6b7d;--warn:#ffb340;--probe:#b194ff;--c1:#5b94ff;--c2:#3ddc84;--c3:#ffb340;--c4:#b57bff;--c5:#ff6b7d;--c6:#35d0c8}}
+:root[data-theme="dark"]{--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--bad:#ff6b7d;--warn:#ffb340;--probe:#b194ff;--c1:#5b94ff;--c2:#3ddc84;--c3:#ffb340;--c4:#b57bff;--c5:#ff6b7d;--c6:#35d0c8}
+[hidden]{display:none!important}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Avenir Next","Trebuchet MS",system-ui,sans-serif}
+main{max-width:1080px;margin:0 auto;padding:20px 16px 40px}
+h1{font:800 clamp(26px,5vw,38px)/1.1 "Avenir Next Condensed","Arial Narrow",system-ui,sans-serif;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--mute);margin:0 0 16px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+nav button{font:inherit;font-weight:700;border:2px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 16px;border-radius:999px;cursor:pointer}
+nav button[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible{outline:3px solid var(--c1);outline-offset:2px}
+.lab{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(250px,1fr);gap:16px}
+@media(max-width:820px){.lab{grid-template-columns:1fr}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.side h2{font-size:17px;margin:2px 0 6px}
+.side p{margin:0 0 10px;color:var(--mute)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.ctl button,.ctl select{font:inherit;font-weight:600;padding:7px 12px;border-radius:9px;border:1.5px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
+.ctl button:hover{border-color:var(--c1)}
+.ctl button:disabled{opacity:.4;cursor:not-allowed}
+.stat{background:var(--soft);border-radius:10px;padding:8px 10px;margin:8px 0;font-weight:600}
+.stat small{display:block;color:var(--mute);font-weight:400}
+.try{margin:10px 0 0;padding-left:18px;color:var(--mute)}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--soft);border-radius:999px;padding:3px 4px 3px 10px;font-weight:700;margin:2px}
+.chip i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.chip button{border:0;background:var(--line);color:var(--ink);border-radius:50%;width:22px;height:22px;cursor:pointer;font-weight:800}
+svg{width:100%;height:auto;display:block;touch-action:manipulation}
+svg text{font-family:inherit;fill:var(--ink)}
+.ring{fill:none;stroke:var(--line);stroke-width:3}
+.tick{font-size:11px;fill:var(--mute)!important}
+.mute{fill:var(--mute)!important;font-size:12px}
+.nd{fill:var(--panel);stroke:var(--line);stroke-width:2}
+.pop{animation:pop .45s cubic-bezier(.3,1.6,.5,1);transform-box:fill-box;transform-origin:center}
+@keyframes pop{from{transform:scale(0)}}
+.draw{animation:draw .9s ease-out}
+@keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+.hit{animation:hit .9s ease-out;transform-box:fill-box;transform-origin:center}
+@keyframes hit{30%{transform:scale(2.2)}}
+.mark{font-weight:800;font-size:16px;animation:rise 1.1s forwards}
+@keyframes rise{to{transform:translateY(-26px);opacity:0}}
+.dn{opacity:.45}
+.user{animation:fade 3.2s forwards}
+@keyframes fade{70%{opacity:1}to{opacity:0}}
+.log{font-size:13px;color:var(--mute);min-height:90px;margin:6px 0 0;padding:0;list-style:none}
+.log li{padding:2px 0;border-bottom:1px dashed var(--line)}
+@media(prefers-reduced-motion:reduce){.pop,.draw,.hit,.user{animation:none}}
+</style></head>
+<body><main>
+<h1>Load Balancing Lab</h1>
+<p class="sub">Three live models. Poke them, break them, and watch what happens.</p>
+<nav role="tablist">
+<button role="tab" data-t="1" aria-selected="true">1 · Consistent hashing</button>
+<button role="tab" data-t="2" aria-selected="false">2 · Health checks</button>
+<button role="tab" data-t="3" aria-selected="false">3 · Global load balancing</button>
+</nav>
+
+<section id="p1" class="lab">
+<div class="box"><svg id="s1" viewBox="0 0 400 400" aria-label="Hash ring"></svg></div>
+<div class="box side">
+<h2>Servers and keys share one ring</h2>
+<p>Each key walks clockwise to the first server it meets. Add or remove a server and only the keys in the affected gap move.</p>
+<div id="srvlist"></div>
+<div class="ctl"><button id="addS">Add server</button><button id="addK">Add key</button><button id="reset">Reset</button></div>
+<div class="stat" id="st1">Change the servers to see how many keys move.<small></small></div>
+<ul class="try"><li>Add a server: only keys just before it move to it.</li><li>Remove one: its keys slide to the next server clockwise.</li><li>Compare with plain hash mod N, which reshuffles almost everything.</li></ul>
+</div></section>
+
+<section id="p2" class="lab" hidden>
+<div class="box"><svg id="s2" viewBox="0 0 640 360" aria-label="Health check flow"></svg></div>
+<div class="box side">
+<h2>Probe, mark, reroute, recover</h2>
+<p>Requests (blue) go only to servers marked healthy. Probes (purple) test each server. A server is marked unhealthy after 2 failed probes and healthy again after 2 passes.</p>
+<div class="ctl" id="crash"></div>
+<div class="ctl"><label>Probe type <select id="ptype"><option>HTTP</option><option>TCP</option><option>ICMP</option></select></label>
+<label>Every <select id="pint"><option value="1000">1 s</option><option value="2000" selected>2 s</option><option value="5000">5 s</option></select></label></div>
+<div class="stat" id="pdesc"></div>
+<div class="stat" id="st2"></div>
+<ul class="try"><li>Crash a server. Watch a few requests fail before it is marked unhealthy.</li><li>Pick a 5 s interval: detection gets slower, more requests fail.</li><li>Recover it and watch it rejoin after 2 passes.</li></ul>
+</div></section>
+
+<section id="p3" class="lab" hidden>
+<div class="box"><svg id="s3" viewBox="0 0 640 380" aria-label="Global load balancing map"></svg></div>
+<div class="box side">
+<h2>Send users to the best region</h2>
+<p><b>Click the map</b> to drop a user. The GSLB picks the closest region that is healthy and not full.</p>
+<div class="ctl" id="rctl"></div>
+<div class="ctl"><button id="auto">Start auto traffic</button></div>
+<ul class="log" id="log"></ul>
+<ul class="try"><li>Click near Asia: lowest latency wins.</li><li>Fail Asia, click there again: traffic shifts.</li><li>Click rapidly in one spot: the region fills and overflows.</li></ul>
+</div></section>
+</main>
+<script>
+const $=s=>document.querySelector(s),NS='http://www.w3.org/2000/svg';
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+const txt=(p,x,y,s,a={})=>{const t=el('text',{x,y,'text-anchor':'middle',...a},p);t.textContent=s;return t};
+function fly(svg,x1,y1,x2,y2,color,dur,done,r=6){const c=el('circle',{r},svg);c.style.fill=color;const t0=performance.now();(function f(t){const p=Math.min(1,(t-t0)/dur);c.setAttribute('cx',x1+(x2-x1)*p);c.setAttribute('cy',y1+(y2-y1)*p);if(p<1)requestAnimationFrame(f);else{c.remove();done&&done()}})(t0)}
+function mark(svg,x,y,s,color){const t=txt(svg,x,y,s,{class:'mark'});t.style.fill=color;setTimeout(()=>t.remove(),1100)}
+const restart=(e,c)=>{e.classList.remove(c);void e.getBoundingClientRect();e.classList.add(c)};
+
+/* ---------- 1 Consistent hashing ---------- */
+const M1=(()=>{
+const svg=$('#s1'),cx=200,cy=200,R=140;
+const pt=(a,r=R)=>{const t=(a-90)*Math.PI/180;return[cx+r*Math.cos(t),cy+r*Math.sin(t)]};
+let servers,keys,nid;
+el('circle',{cx,cy,r:R,class:'ring'},svg);
+[0,90,180,270].forEach(a=>{const[x,y]=pt(a,172);txt(svg,x,y+4,a+'°',{class:'tick'})});
+txt(svg,cx,cy-4,'Hash ring',{'font-weight':700});txt(svg,cx,cy+14,'0° to 360°',{class:'mute'});
+const gl=el('g',{},svg),gk=el('g',{},svg),gs=el('g',{},svg);
+const mkKey=i=>{const h=Math.floor((((i+1)*2654435761)%4294967296)/4294967296*360000);const k={id:i,h,a:Math.round(h/1000)%360};
+ k.line=el('path',{pathLength:1,fill:'none','stroke-width':4,opacity:.55,'stroke-dasharray':1,'stroke-linecap':'round'},gl);
+ k.dot=el('circle',{r:5,stroke:'var(--bg)','stroke-width':1.5},gk);const[x,y]=pt(k.a);k.dot.setAttribute('cx',x);k.dot.setAttribute('cy',y);return k};
+const owner=a=>{const s=[...servers].sort((p,q)=>p.a-q.a);return s.find(x=>x.a>=a)||s[0]};
+function render(msg){
+ gs.innerHTML='';
+ servers.forEach(s=>{const[x,y]=pt(s.a);const o=el('g',{transform:`translate(${x},${y})`},gs);const g=el('g',{class:'pop'},o);
+  const c=el('circle',{r:16,stroke:'var(--bg)','stroke-width':3},g);c.style.fill=`var(--c${s.c})`;
+  const t=txt(g,0,5,s.n,{'font-weight':800});t.style.fill='#fff';
+  const[lx,ly]=pt(s.a,R+34);txt(gs,lx,ly+4,s.a+'°',{class:'tick'})});
+ let moved=0;
+ keys.forEach(k=>{const o=owner(k.a),d=(o.a-k.a+360)%360,[kx,ky]=pt(k.a),[sx,sy]=pt(o.a);
+  k.line.setAttribute('d',`M${kx} ${ky}A${R} ${R} 0 ${d>180?1:0} 1 ${sx} ${sy}`);
+  k.line.style.stroke=`var(--c${o.c})`;k.dot.style.fill=`var(--c${o.c})`;
+  if(k.o!==undefined&&k.o!==o.n){moved++;restart(k.line,'draw');restart(k.dot,'hit')}k.o=o.n});
+ if(msg){const N=msg.before,M=servers.length;let mod=keys.filter(k=>k.h%N!==k.h%M).length;
+  $('#st1').innerHTML=`${msg.text}<br>Consistent hashing moved <b>${moved}</b> of ${keys.length} keys.<small>Plain hash mod N would have moved ${mod} of ${keys.length}.</small>`}
+ $('#srvlist').innerHTML=servers.map(s=>`<span class="chip"><i style="background:var(--c${s.c})"></i>Server ${s.n}<button aria-label="Remove server ${s.n}" data-n="${s.n}">×</button></span>`).join('');
+ $('#addS').disabled=servers.length>=6;
+}
+function reset(){svg.querySelectorAll('g:nth-of-type(3) *').forEach(()=>{});gl.innerHTML='';gk.innerHTML='';
+ servers=[{n:'A',a:20,c:1},{n:'B',a:130,c:2},{n:'C',a:250,c:3}];keys=Array.from({length:18},(_,i)=>mkKey(i));
+ $('#st1').innerHTML='Change the servers to see how many keys move.';render()}
+$('#addS').onclick=()=>{const before=servers.length;const n='ABCDEF'.split('').find(l=>!servers.some(s=>s.n===l));let a,t=0;
+ do{a=Math.floor(Math.random()*360);t++}while(t<50&&servers.some(s=>Math.min(Math.abs(s.a-a),360-Math.abs(s.a-a))<25));
+ servers.push({n,a,c:'ABCDEF'.indexOf(n)+1});render({before,text:`Added server ${n} at ${a}°.`})};
+$('#addK').onclick=()=>{keys.push(mkKey(keys.length+Math.floor(Math.random()*1e4)));render()};
+$('#reset').onclick=reset;
+$('#srvlist').onclick=e=>{const n=e.target.dataset.n;if(!n)return;if(servers.length<=2){$('#st1').textContent='Keep at least 2 servers.';return}
+ const before=servers.length;servers=servers.filter(s=>s.n!==n);render({before,text:`Removed server ${n}.`})};
+reset();return{start(){},stop(){}}})();
+
+/* ---------- 2 Health checks ---------- */
+const M2=(()=>{
+const svg=$('#s2'),LB={x:90,y:180},desc={HTTP:'GET /health: healthy if it returns 200 OK.',TCP:'Open a connection: healthy if the port accepts it.',ICMP:'Ping the host: healthy if it replies.'};
+const S=[0,1,2].map(i=>({i,x:440,y:60+i*120,up:true,st:'healthy',f:0,p:0}));
+let rr=0,served=0,failed=0,dropped=0,tq,tp;
+S.forEach(s=>el('line',{x1:LB.x+45,y1:LB.y,x2:s.x-60,y2:s.y,stroke:'var(--line)','stroke-width':2,'stroke-dasharray':'5 5'},svg));
+const lb=el('rect',{x:LB.x-45,y:LB.y-34,width:90,height:68,rx:12,class:'nd'},svg);txt(svg,LB.x,LB.y-2,'Load',{'font-weight':700});txt(svg,LB.x,LB.y+16,'balancer',{'font-weight':700});
+S.forEach(s=>{s.box=el('rect',{x:s.x-60,y:s.y-30,width:120,height:60,rx:12,class:'nd'},svg);txt(svg,s.x,s.y-8,'Server '+(s.i+1),{'font-weight':700});
+ s.dot=el('circle',{cx:s.x-44,cy:s.y+14,r:6},svg);s.t=txt(svg,s.x+6,s.y+18,'',{class:'mute'});show(s)});
+function show(s){s.dot.style.fill=s.st==='healthy'?'var(--good)':'var(--bad)';s.t.textContent=s.st+(s.f&&s.st==='healthy'?` (${s.f} failed probe)`:'');s.box.classList.toggle('dn',!s.up)}
+function stats(){$('#st2').innerHTML=`Served: <b>${served}</b> · Failed: <b>${failed}</b> · Dropped: <b>${dropped}</b><small>Failed = sent to a crashed server not yet marked unhealthy.</small>`}
+function probe(){S.forEach(s=>fly(svg,LB.x+45,LB.y,s.x-60,s.y,'var(--probe)',500,()=>{
+ const ok=s.up;mark(svg,s.x+70,s.y-30,ok?'✓':'✗',ok?'var(--probe)':'var(--bad)');
+ if(ok){s.p++;s.f=0;if(s.st==='unhealthy'&&s.p>=2)s.st='healthy'}else{s.f++;s.p=0;if(s.st==='healthy'&&s.f>=2)s.st='unhealthy'}show(s)},5))}
+function req(){const h=S.filter(s=>s.st==='healthy');if(!h.length){dropped++;mark(svg,LB.x,LB.y-50,'503',var_('bad'));stats();return}
+ const s=h[rr++%h.length];fly(svg,LB.x+45,LB.y,s.x-60,s.y,'var(--c1)',550,()=>{if(s.up){served++;mark(svg,s.x+70,s.y,'✓','var(--good)')}else{failed++;mark(svg,s.x+70,s.y,'✗','var(--bad)')}stats()})}
+const var_=n=>`var(--${n})`;
+$('#crash').innerHTML=S.map(s=>`<button data-i="${s.i}"></button>`).join('');
+const cb=()=>$('#crash').querySelectorAll('button').forEach((b,i)=>b.textContent=(S[i].up?'Crash':'Recover')+' server '+(i+1));cb();
+$('#crash').onclick=e=>{const i=e.target.dataset.i;if(i===undefined)return;S[i].up=!S[i].up;S[i].p=0;S[i].f=0;show(S[i]);cb()};
+$('#ptype').onchange=()=>$('#pdesc').textContent=desc[$('#ptype').value];$('#pdesc').textContent=desc.HTTP;
+function timers(){clearInterval(tq);clearInterval(tp);tq=setInterval(req,700);tp=setInterval(probe,+$('#pint').value)}
+$('#pint').onchange=()=>{if(!document.hidden&&$('#p2').hidden===false)timers()};
+stats();return{start(){timers();probe()},stop(){clearInterval(tq);clearInterval(tp)}}})();
+
+/* ---------- 3 Global load balancing ---------- */
+const M3=(()=>{
+const svg=$('#s3'),G={x:320,y:56},cap=4;let uid=0,auto;
+const R=[{n:'US',x:110,y:250},{n:'Europe',x:330,y:210},{n:'Asia',x:540,y:250}].map(r=>({...r,up:true,load:0}));
+for(let x=20;x<640;x+=40)for(let y=110;y<380;y+=40)el('circle',{cx:x,cy:y,r:1.5,fill:'var(--line)'},svg);
+const gu=el('g',{},svg);
+const gn=el('g',{},svg);
+el('rect',{x:G.x-80,y:G.y-26,width:160,height:52,rx:26,class:'nd'},gn);txt(gn,G.x,G.y-3,'DNS / GSLB',{'font-weight':700});txt(gn,G.x,G.y+14,'geo · latency · health',{class:'mute'});
+R.forEach((r,i)=>{r.box=el('rect',{x:r.x-62,y:r.y-34,width:124,height:68,rx:12,class:'nd'},gn);txt(gn,r.x,r.y-12,r.n+' region',{'font-weight':700});
+ r.t=txt(gn,r.x,r.y+6,'healthy',{class:'mute'});r.pips=[...Array(cap)].map((_,k)=>el('rect',{x:r.x-34+k*18,y:r.y+16,width:14,height:8,rx:3,fill:'var(--line)'},gn));
+ el('line',{x1:G.x,y1:G.y+26,x2:r.x,y2:r.y-34,stroke:'var(--line)','stroke-width':2,'stroke-dasharray':'5 5'},svg).parentNode.insertBefore(svg.lastChild,gu)});
+function show(r){r.t.textContent=r.up?(r.load>=cap?'full':'healthy'):'DOWN';r.t.style.fill=r.up?(r.load>=cap?'var(--warn)':'var(--good)'):'var(--bad)';r.box.classList.toggle('dn',!r.up);r.pips.forEach((p,k)=>p.style.fill=k<r.load?'var(--c1)':'var(--line)')}
+R.forEach(show);
+const log=m=>{const l=document.createElement('li');l.textContent=m;$('#log').prepend(l);while($('#log').children.length>5)$('#log').lastChild.remove()};
+function send(x,y){const id=++uid,d=r=>Math.hypot(r.x-x,r.y-y),sorted=[...R].sort((a,b)=>d(a)-d(b)),near=sorted[0];
+ const u=el('circle',{cx:x,cy:y,r:7,class:'user'},gu);u.style.fill='var(--c3)';setTimeout(()=>u.remove(),3300);
+ const pick=sorted.find(r=>r.up&&r.load<cap);
+ fly(svg,x,y,G.x,G.y,'var(--c3)',450,()=>{
+  if(!pick){mark(svg,G.x,G.y-36,'No region available','var(--bad)');log(`User ${id}: every region is down or full`);return}
+  const lat=Math.round(15+d(pick)*.28),why=pick!==near?(near.up?` (${near.n} is full)`:` (${near.n} is down)`):'';
+  pick.load++;show(pick);setTimeout(()=>{pick.load--;show(pick)},4000);
+  fly(svg,G.x,G.y,pick.x,pick.y-34,'var(--c1)',500,()=>mark(svg,pick.x,pick.y-40,lat+' ms','var(--good)'));
+  log(`User ${id} → ${pick.n}, ${lat} ms${why}`)})}
+svg.onclick=e=>{const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const q=p.matrixTransform(svg.getScreenCTM().inverse());if(q.y>95)send(q.x,q.y)};
+$('#rctl').innerHTML=R.map((r,i)=>`<button data-i="${i}"></button>`).join('');
+const cb=()=>$('#rctl').querySelectorAll('button').forEach((b,i)=>b.textContent=(R[i].up?'Fail ':'Restore ')+R[i].n);cb();
+$('#rctl').onclick=e=>{const i=e.target.dataset.i;if(i===undefined)return;R[i].up=!R[i].up;show(R[i]);cb();log(`${R[i].n} region ${R[i].up?'restored':'failed'}`)};
+$('#auto').onclick=()=>{if(auto){clearInterval(auto);auto=0;$('#auto').textContent='Start auto traffic'}else{auto=setInterval(()=>send(30+Math.random()*580,120+Math.random()*230),900);$('#auto').textContent='Stop auto traffic'}};
+return{start(){},stop(){clearInterval(auto);auto=0;$('#auto').textContent='Start auto traffic'}}})();
+
+/* ---------- tabs ---------- */
+const mods={1:M1,2:M2,3:M3};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
+ for(const k in mods){mods[k].stop();$('#p'+k).hidden=k!==b.dataset.t}
+ mods[b.dataset.t].start()});
+</script></body></html>

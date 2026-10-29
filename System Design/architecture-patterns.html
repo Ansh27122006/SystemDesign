@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Patterns — Live Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1c;
+    --bg2:#0d1526;
+    --panel:#101b30;
+    --grid:#182544;
+    --line:#2a3b5e;
+    --ink:#e9eefb;
+    --muted:#8ca0c4;
+    --muted-dim:#5b6f96;
+    --cyan:#4fd1ff;
+    --cyan-dim:#1c4a5c;
+    --amber:#ffc061;
+    --magenta:#ff6b9d;
+    --green:#63e6a6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      radial-gradient(ellipse at 20% -10%, #142242 0%, var(--bg) 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  ::selection{background:var(--cyan); color:#001018;}
+
+  .wrap{max-width:1180px; margin:0 auto; padding:0 28px 80px;}
+
+  /* ---------- HERO ---------- */
+  header.hero{
+    padding:56px 28px 34px;
+    max-width:1180px;
+    margin:0 auto;
+    position:relative;
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow-row{
+    display:flex; align-items:center; gap:12px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--cyan); margin-bottom:18px;
+  }
+  .eyebrow-row .dot{width:7px; height:7px; border-radius:50%; background:var(--cyan); box-shadow:0 0 10px var(--cyan); animation:pulse-dot 1.6s ease-in-out infinite;}
+  @keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:.35;}}
+  h1.title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:clamp(34px, 5.4vw, 62px);
+    line-height:1.02;
+    margin:0 0 14px;
+    letter-spacing:-0.02em;
+    max-width:920px;
+  }
+  h1.title em{
+    font-style:normal;
+    color:var(--cyan);
+    text-shadow:0 0 30px rgba(79,209,255,.35);
+  }
+  p.sub{
+    font-size:17px; color:var(--muted); max-width:640px; line-height:1.55; margin:0;
+  }
+  .titleblock{
+    position:absolute; right:28px; bottom:-1px;
+    border:1px solid var(--line); border-bottom:none;
+    background:var(--panel);
+    font-family:'JetBrains Mono', monospace; font-size:10.5px; color:var(--muted-dim);
+    display:grid; grid-template-columns:auto auto; 
+  }
+  .titleblock div{padding:6px 12px; border-top:1px solid var(--line);}
+  .titleblock div:nth-child(odd){color:var(--muted); border-right:1px solid var(--line);}
+  .titleblock div:first-child, .titleblock div:nth-child(2){border-top:none;}
+
+  /* ---------- TABS ---------- */
+  nav.tabs{
+    max-width:1180px; margin:0 auto; padding:26px 28px 0;
+    display:flex; flex-wrap:wrap; gap:10px;
+  }
+  .tab{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12.5px; letter-spacing:.03em;
+    background:var(--panel); color:var(--muted);
+    border:1px solid var(--line); border-radius:8px;
+    padding:10px 14px; cursor:pointer;
+    display:flex; align-items:center; gap:8px;
+    transition:border-color .18s, color .18s, background .18s, transform .12s;
+  }
+  .tab .num{color:var(--muted-dim); font-weight:600;}
+  .tab:hover{border-color:var(--cyan); color:var(--ink); transform:translateY(-1px);}
+  .tab.active{background:linear-gradient(180deg, #163150, #0f2038); border-color:var(--cyan); color:var(--ink); box-shadow:0 0 0 1px rgba(79,209,255,.25), 0 8px 24px -8px rgba(79,209,255,.35);}
+  .tab.active .num{color:var(--cyan);}
+
+  /* ---------- STAGE ---------- */
+  main{max-width:1180px; margin:0 auto; padding:30px 28px 10px;}
+  .stage-head{display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-bottom:18px;}
+  .stage-head h2{
+    font-family:'Space Grotesk', sans-serif; font-size:28px; margin:0 0 6px; font-weight:600;
+  }
+  .stage-head p{margin:0; color:var(--muted); font-size:15px; max-width:560px;}
+  .tilt-toggle{
+    font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--muted);
+    background:var(--panel); border:1px solid var(--line); border-radius:20px;
+    padding:8px 14px; cursor:pointer; display:flex; align-items:center; gap:8px;
+    white-space:nowrap;
+  }
+  .tilt-toggle.on{color:var(--ink); border-color:var(--amber);}
+  .tilt-toggle .sw{width:30px; height:16px; border-radius:10px; background:var(--line); position:relative; transition:background .2s;}
+  .tilt-toggle .sw::after{content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:var(--muted); transition:transform .2s, background .2s;}
+  .tilt-toggle.on .sw{background:rgba(255,192,97,.35);}
+  .tilt-toggle.on .sw::after{transform:translateX(14px); background:var(--amber);}
+
+  .diagram-card{
+    background:linear-gradient(180deg, var(--panel), var(--bg2));
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:6px;
+    perspective:1600px;
+    transition:box-shadow .3s;
+  }
+  .diagram-inner{
+    border-radius:12px;
+    overflow:hidden;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(79,209,255,.06), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 34px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.015) 0 1px, transparent 1px 34px);
+    transform-style:preserve-3d;
+    transition:transform .5s cubic-bezier(.2,.7,.3,1);
+  }
+  .diagram-card.tilt .diagram-inner{
+    transform:rotateX(9deg) rotateY(-5deg) scale(.98);
+  }
+  .diagram-card.tilt{box-shadow:0 30px 60px -20px rgba(0,0,0,.6);}
+
+  svg.diagram{display:block; width:100%; height:auto;}
+
+  /* node visuals */
+  .node-rect{
+    fill:#0f1c33; stroke:var(--line); stroke-width:1.5;
+    filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));
+  }
+  .node-rect-top{fill:#132644; stroke:var(--line); stroke-width:1.5;}
+  .node-client .node-rect{fill:#122036; stroke:#3a5079;}
+  .node-gateway .node-rect{fill:#2b230f; stroke:var(--amber);}
+  .node-service .node-rect{fill:#0d2436; stroke:var(--cyan);}
+  .node-db .node-rect, .node-db .node-rect-top{fill:#16233c; stroke:#5b7aa8;}
+  .node-sidecar .node-rect{fill:#2a1a29; stroke:var(--magenta);}
+  .node-control .node-rect{fill:transparent; stroke:var(--muted-dim); stroke-dasharray:4 4;}
+  .node-compose .node-rect{fill:#231433; stroke:#b78bff;}
+
+  .node-label{fill:var(--ink); font-family:'Space Grotesk', sans-serif; font-size:15px; font-weight:600;}
+  .node-sub{fill:var(--muted); font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.02em;}
+  .group-label{fill:var(--muted-dim); font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase;}
+
+  .edge{stroke:var(--line); stroke-width:1.6; stroke-dasharray:5 5;}
+  .edge-thin{stroke:var(--line); stroke-width:1; stroke-dasharray:2 4; opacity:.7;}
+  .edge-mesh{stroke:var(--magenta); stroke-width:1; stroke-dasharray:3 3; opacity:.5;}
+
+  .packet-cyan{fill:var(--cyan); filter:drop-shadow(0 0 6px var(--cyan));}
+  .packet-amber{fill:var(--amber); filter:drop-shadow(0 0 6px var(--amber));}
+  .packet-magenta{fill:var(--magenta); filter:drop-shadow(0 0 6px var(--magenta));}
+  .packet-green{fill:var(--green); filter:drop-shadow(0 0 6px var(--green));}
+
+  .flash-fail .node-rect{ animation:flashFail 1s ease-out; }
+  @keyframes flashFail{
+    0%{fill:#0f1c33; stroke:var(--line);}
+    20%{fill:#4a0f22; stroke:var(--magenta);}
+    100%{fill:#0f1c33; stroke:var(--line);}
+  }
+  .flash-good .node-rect{ animation:flashGood 1s ease-out; }
+  @keyframes flashGood{
+    0%{fill:#0f1c33; stroke:var(--line);}
+    20%{fill:#0f3a2c; stroke:var(--green);}
+    100%{fill:#0d2436; stroke:var(--cyan);}
+  }
+  .flash-fade{ animation:flashFade 1.1s ease-out forwards; }
+  @keyframes flashFade{
+    0%{opacity:1;} 55%{opacity:.15;} 100%{opacity:.15;}
+  }
+  .flash-glow .node-rect{ animation:flashGlow 1.1s ease-out; }
+  @keyframes flashGlow{
+    0%{filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));}
+    30%{filter:drop-shadow(0 0 16px var(--amber));}
+    100%{filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));}
+  }
+
+  /* ---------- controls ---------- */
+  .controls{display:flex; align-items:center; gap:16px; margin:20px 2px 6px; flex-wrap:wrap;}
+  .play-btn{
+    font-family:'JetBrains Mono', monospace; font-weight:600; font-size:13px;
+    background:var(--cyan); color:#00131a; border:none; border-radius:8px;
+    padding:11px 20px; cursor:pointer; display:flex; align-items:center; gap:8px;
+    box-shadow:0 8px 20px -8px rgba(79,209,255,.6);
+    transition:transform .12s, box-shadow .12s;
+  }
+  .play-btn:hover{transform:translateY(-1px); box-shadow:0 10px 24px -6px rgba(79,209,255,.7);}
+  .play-btn:active{transform:translateY(0);}
+  .play-btn.playing{background:var(--panel); color:var(--ink); border:1px solid var(--cyan);}
+  .step-dots{display:flex; gap:7px;}
+  .step-dot{width:9px; height:9px; border-radius:50%; background:var(--line); cursor:pointer; transition:background .2s, transform .2s;}
+  .step-dot.active{background:var(--cyan); transform:scale(1.25); box-shadow:0 0 8px var(--cyan);}
+  .step-dot.done{background:var(--muted-dim);}
+
+  .caption-box{
+    margin-top:16px; min-height:52px;
+    border-left:3px solid var(--cyan);
+    padding:4px 0 4px 16px;
+  }
+  .caption-box p{
+    margin:0; font-size:16px; color:var(--ink); line-height:1.5;
+    font-family:'Inter', sans-serif;
+  }
+  .caption-box .step-tag{
+    font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--cyan);
+    letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:4px;
+  }
+
+  .keypoints{
+    list-style:none; margin:26px 0 0; padding:0;
+    display:grid; grid-template-columns:repeat(2, 1fr); gap:10px 22px;
+  }
+  .keypoints li{
+    font-size:14px; color:var(--muted); line-height:1.5; padding-left:20px; position:relative;
+  }
+  .keypoints li::before{
+    content:''; position:absolute; left:0; top:7px; width:8px; height:8px;
+    background:var(--amber); border-radius:2px; transform:rotate(45deg);
+  }
+  @media (max-width:680px){ .keypoints{grid-template-columns:1fr;} }
+
+  /* ---------- cheat sheet ---------- */
+  section.cheat{max-width:1180px; margin:70px auto 0; padding:0 28px;}
+  .cheat-head{margin-bottom:18px;}
+  .cheat-head h2{font-family:'Space Grotesk',sans-serif; font-size:26px; margin:0 0 6px;}
+  .cheat-head p{color:var(--muted); margin:0; font-size:14.5px;}
+  .table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:12px;}
+  table{border-collapse:collapse; width:100%; min-width:760px; font-size:13.5px;}
+  thead th{
+    font-family:'JetBrains Mono', monospace; text-transform:uppercase; letter-spacing:.06em;
+    font-size:11px; color:var(--cyan); text-align:left; padding:14px 16px;
+    background:var(--panel); border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  tbody td{padding:14px 16px; border-bottom:1px solid var(--line); color:var(--muted); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody td:first-child{color:var(--ink); font-weight:600; font-family:'Space Grotesk',sans-serif; white-space:nowrap;}
+  tbody tr:hover td{background:rgba(79,209,255,.04);}
+
+  footer{max-width:1180px; margin:60px auto 0; padding:24px 28px 0; border-top:1px solid var(--line);
+    color:var(--muted-dim); font-family:'JetBrains Mono', monospace; font-size:11.5px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;}
+
+  @media (prefers-reduced-motion: reduce){
+    * { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="eyebrow-row"><span class="dot"></span> SYSTEM DESIGN · LIVE BLUEPRINT</div>
+  <h1 class="title">How requests actually move through <em>six</em> architectures.</h1>
+  <p class="sub">Six patterns, one animated blueprint. Hit play, watch the request flow hop-by-hop, and pause on any step to discuss with the class.</p>
+  <div class="titleblock">
+    <div>DRAWING</div><div>PATTERNS&nbsp;101</div>
+    <div>REV</div><div>6</div>
+    <div>SCALE</div><div>NTS</div>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs"></nav>
+
+<main>
+  <section class="stage-head">
+    <div>
+      <h2 id="stageTitle"></h2>
+      <p id="stageTagline"></p>
+    </div>
+    <button class="tilt-toggle on" id="tiltToggle"><span class="sw"></span> 3D blueprint tilt</button>
+  </section>
+
+  <div class="diagram-card tilt" id="diagramCard">
+    <div class="diagram-inner" id="diagramWrap"></div>
+  </div>
+
+  <div class="controls">
+    <button class="play-btn" id="playBtn">▶ &nbsp;Play walkthrough</button>
+    <div class="step-dots" id="stepDots"></div>
+  </div>
+
+  <div class="caption-box">
+    <span class="step-tag" id="stepTag">STEP 1 / 5</span>
+    <p id="caption">Loading…</p>
+  </div>
+
+  <ul class="keypoints" id="keypoints"></ul>
+</main>
+
+<section class="cheat">
+  <div class="cheat-head">
+    <h2>The trade-off cheat sheet</h2>
+    <p>Everything on one slide — deploy your projector here at the end of class.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Pattern</th><th>Deploy unit</th><th>Scaling</th><th>Failure blast radius</th><th>Latency profile</th><th>Best for</th></tr>
+      </thead>
+      <tbody id="cheatBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <span>PATTERNS-101 · REV 6</span>
+  <span>build it, break it, then explain why</span>
+</footer>
+
+<script>
+/* ============ small SVG helpers ============ */
+function rectNode({id,x,y,w=150,h=64,label,sub,cls='service'}){
+  const cy=y+h/2;
+  return `<g id="${id}" class="node node-${cls}">
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" class="node-rect"/>
+    <text x="${x+w/2}" y="${sub?cy-3:cy+5}" class="node-label" text-anchor="middle">${label}</text>
+    ${sub?`<text x="${x+w/2}" y="${cy+15}" class="node-sub" text-anchor="middle">${sub}</text>`:''}
+  </g>`;
+}
+function dbNode({id,x,y,w=96,h=74,label='DB',cls='db'}){
+  const rx=w/2, ry=13;
+  return `<g id="${id}" class="node node-${cls}">
+    <path class="node-rect" d="M${x} ${y+ry} a${rx} ${ry} 0 0 0 ${w} 0 v${h-2*ry} a${rx} ${ry} 0 0 1 -${w} 0 z"/>
+    <ellipse class="node-rect-top" cx="${x+rx}" cy="${y+ry}" rx="${rx}" ry="${ry}"/>
+    <text x="${x+rx}" y="${y+h-6}" class="node-label" text-anchor="middle" style="font-size:12px">${label}</text>
+  </g>`;
+}
+function groupLabel(x,y,text){
+  return `<text x="${x}" y="${y}" class="group-label">${text}</text>`;
+}
+function edge(id,d,cls='edge'){ return `<path id="${id}" class="${cls}" d="${d}" fill="none"/>`; }
+function packet(pathId,begin,dur=0.7,color='cyan'){
+  return `<circle r="6" class="packet-${color}">
+    <animateMotion dur="${dur}s" begin="${begin}s" fill="freeze"><mpath href="#${pathId}"/></animateMotion>
+    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.8;1" dur="${dur}s" begin="${begin}s" fill="freeze"/>
+  </circle>`;
+}
+function svgWrap(inner){
+  return `<svg class="diagram" viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+}
+
+/* ============ pattern data ============ */
+const STEP_T = [0, 900, 1800, 2700, 3600]; // ms offsets used for captions/flashes across all patterns
+
+const PATTERNS = [
+
+/* 1 — MONOLITH ------------------------------------------------------ */
+{
+  key:'monolith', eyebrow:'PATTERN 01', title:'The Monolith',
+  tagline:'One codebase, one deployment, one blast radius.',
+  captions:[
+    'A request hits the load balancer and enters a single deployable application.',
+    'Inside, it hops in-process between modules — Auth calls Orders, Orders calls Payments.',
+    'Every module reads and writes the same shared database.',
+    'Ship one line of code, and you redeploy the entire app — even if only Payments changed.',
+    'And if Payments crashes... it can take Auth, Catalog and Orders down with it.'
+  ],
+  flash:[[],[],[],['mono-appbox'],['mono-payments','mono-appbox']],
+  flashCls:[null,null,null,'flash-glow','flash-fail'],
+  keypoints:[
+    'Single deployable unit — simple to build, test and run locally',
+    'Shared database means easy transactions, but tight coupling',
+    'Scaling means scaling everything, even the parts nobody is using',
+    'One unhandled bug can create a system-wide outage — blast radius ≈ 100%'
+  ],
+  svg:()=>{
+    let s='';
+    s+=rectNode({id:'mono-client',x:36,y:250,w:120,h:64,label:'Client',cls:'client'});
+    s+=rectNode({id:'mono-lb',x:206,y:250,w:130,h:64,label:'Load Balancer',cls:'gateway'});
+    s+=`<g id="mono-appbox"><rect x="410" y="70" width="540" height="370" rx="16" fill="none" stroke="#2a3b5e" stroke-width="1.5" stroke-dasharray="6 5"/>
+        ${groupLabel(432,98,'MONOLITH APPLICATION · SINGLE DEPLOYABLE')}</g>`;
+    s+=rectNode({id:'mono-auth',x:440,y:126,w:210,h:74,label:'Auth Module',cls:'service'});
+    s+=rectNode({id:'mono-catalog',x:700,y:126,w:210,h:74,label:'Catalog Module',cls:'service'});
+    s+=rectNode({id:'mono-orders',x:440,y:280,w:210,h:74,label:'Orders Module',cls:'service'});
+    s+=rectNode({id:'mono-payments',x:700,y:280,w:210,h:74,label:'Payments Module',cls:'service'});
+    s+=dbNode({id:'mono-db',x:598,y:452,w:110,h:70,label:'Shared DB'});
+    // edges
+    s+=edge('mono-e1','M156,282 L206,282');
+    s+=edge('mono-e2','M336,282 L410,282 L410,163 L440,163');
+    s+=edge('mono-e3','M545,200 L545,280');
+    s+=edge('mono-e4','M650,317 L700,317');
+    s+=edge('mono-e5','M805,354 L805,400 L653,400 L653,452');
+    // packets
+    s+=packet('mono-e1',STEP_T[0]/1000,0.6,'cyan');
+    s+=packet('mono-e2',STEP_T[0]/1000+0.6,0.6,'cyan');
+    s+=packet('mono-e3',STEP_T[1]/1000,0.5,'amber');
+    s+=packet('mono-e4',STEP_T[1]/1000+0.55,0.5,'amber');
+    s+=packet('mono-e5',STEP_T[2]/1000,0.7,'green');
+    return svgWrap(s);
+  }
+},
+
+/* 2 — MICROSERVICES --------------------------------------------------*/
+{
+  key:'microservices', eyebrow:'PATTERN 02', title:'Microservices',
+  tagline:'Independent services, independent failures, independent deploys.',
+  captions:[
+    'The client talks to one door in: the API Gateway.',
+    'The gateway routes the request only to the services it actually needs.',
+    'Each service owns its own database — no shared tables, no silent coupling.',
+    'Payments can deploy ten times a day without ever touching Orders.',
+    'When Payments fails, Orders keeps serving traffic — the blast radius just got smaller.'
+  ],
+  flash:[[],[],[],['ms-payments'],['ms-payments']],
+  flashCls:[null,null,null,'flash-glow','flash-fail'],
+  keypoints:[
+    'Independently deployable & independently scalable services',
+    'Database-per-service — each owns its own data',
+    'Smaller blast radius, at the cost of distributed-systems complexity',
+    'Needs service discovery, tracing & retries — often via a mesh (pattern 04)'
+  ],
+  svg:()=>{
+    let s='';
+    s+=rectNode({id:'ms-client',x:36,y:250,w:120,h:64,label:'Client',cls:'client'});
+    s+=rectNode({id:'ms-gw',x:206,y:250,w:140,h:64,label:'API Gateway',cls:'gateway'});
+    s+=rectNode({id:'ms-auth',x:470,y:70,w:190,h:66,label:'Auth Service',cls:'service'});
+    s+=rectNode({id:'ms-orders',x:470,y:246,w:190,h:66,label:'Orders Service',cls:'service'});
+    s+=rectNode({id:'ms-payments',x:470,y:420,w:190,h:66,label:'Payments Service',cls:'service'});
+    s+=dbNode({id:'ms-db1',x:730,y:64,w:80,h:64,label:'DB'});
+    s+=dbNode({id:'ms-db2',x:730,y:240,w:80,h:64,label:'DB'});
+    s+=dbNode({id:'ms-db3',x:730,y:414,w:80,h:64,label:'DB'});
+    s+=edge('ms-e0','M156,282 L206,282');
+    s+=edge('ms-e1','M346,270 L410,270 L410,103 L470,103');
+    s+=edge('ms-e2','M346,290 L410,290 L410,279 L470,279');
+    s+=edge('ms-e3','M346,310 L410,310 L410,453 L470,453');
+    s+=edge('ms-e4','M660,103 L730,96');
+    s+=edge('ms-e5','M660,279 L730,272');
+    s+=edge('ms-e6','M660,453 L730,446');
+    s+=packet('ms-e0',STEP_T[0]/1000,0.5,'cyan');
+    s+=packet('ms-e2',STEP_T[1]/1000,0.55,'cyan');
+    s+=packet('ms-e3',STEP_T[1]/1000+0.15,0.55,'amber');
+    s+=packet('ms-e5',STEP_T[2]/1000,0.4,'cyan');
+    s+=packet('ms-e6',STEP_T[2]/1000+0.15,0.4,'amber');
+    return svgWrap(s);
+  }
+},
+
+/* 3 — SERVERLESS -------------------------------------------------------*/
+{
+  key:'serverless', eyebrow:'PATTERN 03', title:'Serverless / FaaS',
+  tagline:'No servers to manage — you just ship functions.',
+  captions:[
+    'A request arrives at the API Gateway — but nothing is running yet.',
+    'The platform spins up a brand new container: the cold start.',
+    'Your function runs, touches a managed database, and returns a response.',
+    'The moment it finishes, the container is torn down. You pay only for those milliseconds.',
+    'No traffic for a while? The function scales to zero — literally nothing running.'
+  ],
+  flash:[[],['sl-fn'],[],[],['sl-fn']],
+  flashCls:[null,'flash-glow',null,null,'flash-fade'],
+  keypoints:[
+    'Pay-per-execution — scales to zero automatically when idle',
+    'Cold starts add latency to the first request after idle time',
+    'Ideal for spiky, event-driven or unpredictable workloads',
+    'You trade low-level runtime control for zero infrastructure management'
+  ],
+  svg:()=>{
+    let s='';
+    s+=rectNode({id:'sl-client',x:36,y:250,w:120,h:64,label:'Client',cls:'client'});
+    s+=rectNode({id:'sl-gw',x:206,y:250,w:140,h:64,label:'API Gateway',cls:'gateway'});
+    s+=`<g id="sl-fn" class="node node-service"><rect x="470" y="240" width="220" height="84" rx="14" class="node-rect" stroke-dasharray="7 5"/>
+        <text x="580" y="272" class="node-label" text-anchor="middle">λ Function</text>
+        <text x="580" y="292" class="node-sub" text-anchor="middle">ephemeral · cold start ~250ms</text>
+        <text x="580" y="308" class="node-sub" text-anchor="middle">scales 0 → N → 0</text></g>`;
+    s+=dbNode({id:'sl-db',x:800,y:248,w:96,h:70,label:'Managed DB'});
+    s+=edge('sl-e0','M156,282 L206,282');
+    s+=edge('sl-e1','M346,282 L470,282');
+    s+=edge('sl-e2','M690,282 L800,282');
+    s+=packet('sl-e0',STEP_T[0]/1000,0.5,'cyan');
+    s+=packet('sl-e1',STEP_T[0]/1000+0.55,0.7,'amber');
+    s+=packet('sl-e2',STEP_T[2]/1000,0.5,'green');
+    s+=packet('sl-e2',STEP_T[2]/1000+0.6,0.5,'green');
+    return svgWrap(s);
+  }
+},
+
+/* 4 — SERVICE MESH ------------------------------------------------------*/
+{
+  key:'mesh', eyebrow:'PATTERN 04', title:'Service Mesh',
+  tagline:'Every service gets a bodyguard — the sidecar proxy.',
+  captions:[
+    'Orders wants to call Payments directly, just like in plain microservices...',
+    '...but the call is intercepted by its own sidecar proxy first.',
+    'The sidecar handles retries, mTLS encryption and load balancing — Orders\' code never sees this logic.',
+    'The control plane configures every proxy in the mesh from one place.',
+    'Payments hiccups — its sidecar retries and reroutes automatically. The app code never noticed.'
+  ],
+  flash:[[],[],[],['mesh-cp'],['mesh-pay-side']],
+  flashCls:[null,null,null,'flash-glow','flash-fail'],
+  keypoints:[
+    'Sidecar proxies absorb cross-cutting concerns: retries, mTLS, load balancing, telemetry',
+    'A control plane configures every proxy centrally — no app code changes',
+    'Decouples networking logic from business logic',
+    'Adds an extra hop of latency and real operational complexity'
+  ],
+  svg:()=>{
+    let s='';
+    s+=`<g id="mesh-cp" class="node node-control"><rect x="330" y="46" width="340" height="56" rx="10" class="node-rect"/>
+        <text x="500" y="80" class="node-label" text-anchor="middle" style="font-size:13px">Control Plane</text></g>`;
+    s+=rectNode({id:'mesh-orders',x:150,y:280,w:190,h:70,label:'Orders Service',cls:'service'});
+    s+=rectNode({id:'mesh-order-side',x:150,y:222,w:70,h:40,label:'sidecar',cls:'sidecar'});
+    s+=rectNode({id:'mesh-payments',x:660,y:280,w:190,h:70,label:'Payments Service',cls:'service'});
+    s+=rectNode({id:'mesh-pay-side',x:780,y:222,w:70,h:40,label:'sidecar',cls:'sidecar'});
+    s+=edge('mesh-ctl1','M400,102 L185,222','edge-mesh');
+    s+=edge('mesh-ctl2','M600,102 L815,222','edge-mesh');
+    s+=edge('mesh-e1','M245,280 L245,262');
+    s+=edge('mesh-e2','M220,242 L780,242');
+    s+=edge('mesh-e3','M815,262 L815,280');
+    s+=groupLabel(220,320+0,'');
+    s+=`<text x="500" y="238" class="node-sub" text-anchor="middle" style="font-size:10px">mTLS + retry policy</text>`;
+    s+=packet('mesh-e1',STEP_T[0]/1000,0.4,'cyan');
+    s+=packet('mesh-e2',STEP_T[1]/1000,0.7,'magenta');
+    s+=packet('mesh-e3',STEP_T[2]/1000,0.4,'cyan');
+    s+=packet('mesh-e3',STEP_T[3]/1000,0.35,'amber');
+    s+=packet('mesh-e2',STEP_T[3]/1000+0.4,0.7,'magenta');
+    return svgWrap(s);
+  }
+},
+
+/* 5 — BFF ----------------------------------------------------------------*/
+{
+  key:'bff', eyebrow:'PATTERN 05', title:'Backend for Frontend (BFF)',
+  tagline:'One backend per client, shaped to fit exactly what that client needs.',
+  captions:[
+    'The mobile app and the web app want very different data for the same page.',
+    'Each client talks to its own BFF — never directly to the raw microservices.',
+    'The Mobile BFF asks for a lean payload: just what fits a small screen.',
+    'The Web BFF fans out further, adding Recommendations for a richer layout.',
+    'Each BFF is optimized and owned by the team that owns that client experience.'
+  ],
+  flash:[[],[],['bff-mobile'],['bff-web'],[]],
+  flashCls:[null,null,'flash-glow','flash-glow',null],
+  keypoints:[
+    'One BFF per front-end — mobile, web, smartwatch, kiosk...',
+    'Avoids "one-size-fits-all" API responses that overfetch or underfetch',
+    'Reduces chattiness for constrained or high-latency clients',
+    'Risk: logic duplication across BFFs if teams don\'t share carefully'
+  ],
+  svg:()=>{
+    let s='';
+    s+=rectNode({id:'bff-mobileclient',x:30,y:120,w:130,h:60,label:'Mobile App',cls:'client'});
+    s+=rectNode({id:'bff-webclient',x:30,y:380,w:130,h:60,label:'Web App',cls:'client'});
+    s+=rectNode({id:'bff-mobile',x:220,y:120,w:150,h:60,label:'Mobile BFF',cls:'gateway'});
+    s+=rectNode({id:'bff-web',x:220,y:380,w:150,h:60,label:'Web BFF',cls:'gateway'});
+    s+=rectNode({id:'bff-orders',x:560,y:80,w:180,h:60,label:'Orders Service',cls:'service'});
+    s+=rectNode({id:'bff-payments',x:560,y:250,w:180,h:60,label:'Payments Service',cls:'service'});
+    s+=rectNode({id:'bff-recs',x:560,y:420,w:180,h:60,label:'Recommendations',cls:'service'});
+    s+=edge('bff-e0','M160,150 L220,150');
+    s+=edge('bff-e1','M160,410 L220,410');
+    s+=edge('bff-e2','M370,140 L560,110');
+    s+=edge('bff-e3','M370,160 L560,270');
+    s+=edge('bff-e4','M370,395 L560,290');
+    s+=edge('bff-e5','M370,410 L560,440');
+    s+=edge('bff-e6','M370,425 L560,120');
+    s+=packet('bff-e0',STEP_T[0]/1000,0.5,'cyan');
+    s+=packet('bff-e1',STEP_T[0]/1000,0.5,'amber');
+    s+=packet('bff-e2',STEP_T[1]/1000,0.55,'cyan');
+    s+=packet('bff-e3',STEP_T[1]/1000,0.6,'cyan');
+    s+=packet('bff-e4',STEP_T[2]/1000,0.55,'amber');
+    s+=packet('bff-e5',STEP_T[2]/1000,0.55,'amber');
+    s+=packet('bff-e6',STEP_T[2]/1000+0.1,0.6,'amber');
+    return svgWrap(s);
+  }
+},
+
+/* 6 — API COMPOSITION -----------------------------------------------------*/
+{
+  key:'composition', eyebrow:'PATTERN 06', title:'API Composition',
+  tagline:'Query fan-out, one merged answer.',
+  captions:[
+    'The client asks one question: "show me this product page."',
+    'The composer fans that single request out to three services — in parallel.',
+    'Orders, Inventory and Reviews each respond at their own pace.',
+    'The composer waits, then merges the three results into one shape...',
+    '...and returns a single, unified response. The client never knew three services were involved.'
+  ],
+  flash:[[],[],[],['comp-composer'],['comp-composer','comp-client']],
+  flashCls:[null,null,null,'flash-glow','flash-good'],
+  keypoints:[
+    'Aggregates data from multiple services into a single response',
+    'Parallel fan-out/fan-in keeps latency close to the slowest call, not the sum',
+    'Often lives inside a gateway or BFF layer',
+    'The hard part: partial failures, timeouts, and what to return when one call is slow'
+  ],
+  svg:()=>{
+    let s='';
+    s+=rectNode({id:'comp-client',x:36,y:250,w:120,h:64,label:'Client',cls:'client'});
+    s+=rectNode({id:'comp-composer',x:230,y:246,w:170,h:70,label:'Composer',sub:'fan-out / fan-in',cls:'compose'});
+    s+=rectNode({id:'comp-orders',x:560,y:70,w:190,h:64,label:'Orders Service',cls:'service'});
+    s+=rectNode({id:'comp-inventory',x:560,y:250,w:190,h:64,label:'Inventory Service',cls:'service'});
+    s+=rectNode({id:'comp-reviews',x:560,y:430,w:190,h:64,label:'Reviews Service',cls:'service'});
+    s+=edge('comp-e0','M156,282 L230,282');
+    s+=edge('comp-e1','M400,265 L460,265 L460,103 L560,103');
+    s+=edge('comp-e2','M400,281 L560,281');
+    s+=edge('comp-e3','M400,297 L460,297 L460,461 L560,461');
+    s+=edge('comp-r1','M560,120 L470,120 L470,265 L400,265');
+    s+=edge('comp-r2','M560,300 L400,300');
+    s+=edge('comp-r3','M560,445 L480,445 L480,297 L400,297');
+    s+=edge('comp-e4','M230,282 L156,282');
+    s+=packet('comp-e0',STEP_T[0]/1000,0.5,'cyan');
+    s+=packet('comp-e1',STEP_T[1]/1000,0.6,'cyan');
+    s+=packet('comp-e2',STEP_T[1]/1000,0.5,'cyan');
+    s+=packet('comp-e3',STEP_T[1]/1000,0.65,'cyan');
+    s+=packet('comp-r1',STEP_T[2]/1000,0.6,'amber');
+    s+=packet('comp-r2',STEP_T[2]/1000+0.15,0.5,'amber');
+    s+=packet('comp-r3',STEP_T[2]/1000+0.3,0.65,'amber');
+    s+=packet('comp-e4',STEP_T[3]/1000+0.3,0.5,'green');
+    return svgWrap(s);
+  }
+},
+
+];
+
+/* cheat sheet rows aligned to PATTERNS order */
+const CHEAT = [
+  ['Monolith','One large app','Scale the whole thing','Very large — one crash can take it all down','Fast in-process calls, no network hops','Small teams, early-stage products, simple domains'],
+  ['Microservices','Per service','Scale each service independently','Contained to the failing service','Extra network hop per call','Independent teams, differing scaling needs per domain'],
+  ['Serverless','Per function','Auto, incl. scale-to-zero','Contained to the function invocation','Cold starts add latency on first call','Spiky/event-driven workloads, low ops overhead'],
+  ['Service Mesh','Per service + sidecar','Same as microservices','Contained, with automatic retries','+1 hop for proxy, but resilient','Large microservice fleets needing uniform security/observability'],
+  ['BFF','Per client type','Scale per client\'s traffic pattern','Contained to one client\'s BFF','Tuned per client — fewer round trips','Multiple very different front-ends (mobile/web/watch)'],
+  ['API Composition','Composer layer','Scales with fan-out concurrency','Partial failure — some data may be missing','≈ slowest of the parallel calls','Single-screen views assembled from many services'],
+];
+
+/* ============ render / state ============ */
+const tabsEl=document.getElementById('tabs');
+const diagramWrap=document.getElementById('diagramWrap');
+const diagramCard=document.getElementById('diagramCard');
+const stageTitle=document.getElementById('stageTitle');
+const stageTagline=document.getElementById('stageTagline');
+const keypointsEl=document.getElementById('keypoints');
+const captionEl=document.getElementById('caption');
+const stepTagEl=document.getElementById('stepTag');
+const stepDotsEl=document.getElementById('stepDots');
+const playBtn=document.getElementById('playBtn');
+const cheatBody=document.getElementById('cheatBody');
+const tiltToggle=document.getElementById('tiltToggle');
+
+let current=0;
+let timers=[];
+let stepIndex=0;
+
+function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
+
+function renderTabs(){
+  tabsEl.innerHTML = PATTERNS.map((p,i)=>
+    `<button class="tab ${i===current?'active':''}" data-i="${i}">
+      <span class="num">${String(i+1).padStart(2,'0')}</span> ${p.title}
+    </button>`).join('');
+  [...tabsEl.querySelectorAll('.tab')].forEach(btn=>{
+    btn.addEventListener('click', ()=> selectPattern(parseInt(btn.dataset.i)));
+  });
+}
+
+function renderCheat(){
+  cheatBody.innerHTML = CHEAT.map(row=>
+    `<tr>${row.map(cell=>`<td>${cell}</td>`).join('')}</tr>`).join('');
+}
+
+function renderStepDots(n){
+  stepDotsEl.innerHTML = Array.from({length:n}).map((_,i)=>
+    `<span class="step-dot" data-i="${i}"></span>`).join('');
+  [...stepDotsEl.querySelectorAll('.step-dot')].forEach(dot=>{
+    dot.addEventListener('click', ()=> jumpToStep(parseInt(dot.dataset.i)));
+  });
+}
+
+function updateStepDots(idx){
+  [...stepDotsEl.querySelectorAll('.step-dot')].forEach((dot,i)=>{
+    dot.classList.toggle('active', i===idx);
+    dot.classList.toggle('done', i<idx);
+  });
+}
+
+function selectPattern(i){
+  clearTimers();
+  current=i;
+  const p=PATTERNS[i];
+  renderTabs();
+  stageTitle.textContent = p.title;
+  stageTagline.textContent = p.tagline;
+  keypointsEl.innerHTML = p.keypoints.map(k=>`<li>${k}</li>`).join('');
+  renderStepDots(p.captions.length);
+  diagramWrap.innerHTML = p.svg();
+  playBtn.classList.remove('playing');
+  playBtn.innerHTML='▶ &nbsp;Play walkthrough';
+  showStep(0, false);
+}
+
+function showStep(idx, doFlash){
+  const p=PATTERNS[current];
+  stepIndex=idx;
+  stepTagEl.textContent = `STEP ${idx+1} / ${p.captions.length}`;
+  captionEl.textContent = p.captions[idx];
+  updateStepDots(idx);
+  if(doFlash && p.flash && p.flash[idx] && p.flash[idx].length){
+    p.flash[idx].forEach(id=>{
+      const el = diagramWrap.querySelector('#'+id);
+      if(el){
+        const cls = (p.flashCls && p.flashCls[idx]) || 'flash-good';
+        el.classList.remove('flash-fail','flash-good','flash-glow','flash-fade');
+        void el.offsetWidth;
+        el.classList.add(cls);
+      }
+    });
+  }
+}
+
+function jumpToStep(idx){
+  clearTimers();
+  playBtn.classList.remove('playing');
+  playBtn.innerHTML='▶ &nbsp;Play walkthrough';
+  showStep(idx, true);
+}
+
+function playPattern(){
+  clearTimers();
+  const p=PATTERNS[current];
+  // restart svg animations from scratch
+  diagramWrap.innerHTML = p.svg();
+  playBtn.classList.add('playing');
+  playBtn.innerHTML='⏸ &nbsp;Playing…';
+  p.captions.forEach((c, idx)=>{
+    const t = setTimeout(()=>{
+      showStep(idx, true);
+      if(idx===p.captions.length-1){
+        setTimeout(()=>{ playBtn.classList.remove('playing'); playBtn.innerHTML='↻ &nbsp;Replay'; }, 1100);
+      }
+    }, STEP_T[idx] || idx*900);
+    timers.push(t);
+  });
+}
+
+playBtn.addEventListener('click', playPattern);
+
+tiltToggle.addEventListener('click', ()=>{
+  diagramCard.classList.toggle('tilt');
+  tiltToggle.classList.toggle('on');
+});
+
+renderTabs();
+renderCheat();
+selectPattern(0);
+setTimeout(()=> playPattern(), 400);
+</script>
+</body>
+</html>

@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Architectural Patterns 05 — Service Mesh, BFF &amp; API Composition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#F7F9FC; --panel-2:#E7ECF3; --border:#5C6B84;
+    --text:#0F172A; --muted:#3F4C60;
+    --cyan:#0B7C82; --amber:#B45309; --coral:#C81E3A; --violet:#6D28D9; --green:#15803D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;}
+  ::selection{background:var(--cyan); color:#FFFFFF;}
+  body{
+    background-image:linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size:36px 36px;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding:0 24px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header{padding:52px 0 34px;}
+  .crumb{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:2.5px; color:var(--cyan); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .crumb .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(28px,4.6vw,46px); line-height:1.08; margin-top:14px; letter-spacing:-0.5px;}
+  h1 .hl{color:var(--cyan);}
+  .lead{color:var(--muted); font-size:16px; max-width:720px; margin-top:16px; line-height:1.6;}
+
+  main{padding:10px 0 100px;}
+  section{margin-top:56px;}
+  .sec-eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber);}
+  .sec-title{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:8px;}
+  .sec-desc{color:var(--muted); font-size:15px; margin-top:10px; max-width:760px; line-height:1.65;}
+
+  .versus3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; margin-top:26px;}
+  @media(max-width:900px){.versus3{grid-template-columns:1fr;}}
+  .vcard{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .vcard.mesh{border-top:4px solid var(--violet);} .vcard.bff{border-top:4px solid var(--cyan);} .vcard.compose{border-top:4px solid var(--amber);}
+  .vcard h3{font-family:'Space Grotesk',sans-serif; font-size:18px; margin-bottom:8px;}
+  .vcard.mesh h3{color:var(--violet);} .vcard.bff h3{color:var(--cyan);} .vcard.compose h3{color:var(--amber);}
+  .vcard p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .vcard .metrics-list{margin-top:12px; display:flex; flex-wrap:wrap; gap:6px;}
+  .vcard .metrics-list span{font-family:'JetBrains Mono',monospace; font-size:10.5px; background:var(--panel-2); border:1px solid var(--border); padding:3px 8px; border-radius:6px; color:var(--text);}
+
+  .panel{background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:26px; margin-top:26px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .panel-label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+  .panel-label::before{content:'▸'; color:var(--cyan);}
+  .panel-note{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.6; border-top:1px solid var(--border); padding-top:14px;}
+  .panel-note b{color:var(--text);}
+
+  .controls{display:flex; gap:14px; flex-wrap:wrap; margin-top:20px; align-items:center;}
+  button.btn{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:#FFFFFF; background:var(--cyan); border:none; border-radius:8px; padding:11px 18px; cursor:pointer; transition:transform .15s, opacity .15s;}
+  button.btn:hover{transform:translateY(-1px); opacity:.9;}
+  button.btn.ghost{background:transparent; color:var(--text); border:2px solid var(--border);}
+  button.btn.violet{background:var(--violet);}
+  button.btn.amber{background:var(--amber);}
+  button.btn.coral{background:var(--coral);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+  .toggle-row{display:flex; gap:8px; background:var(--panel-2); border:2px solid var(--border); border-radius:9px; padding:4px; width:fit-content; flex-wrap:wrap;}
+  .toggle-row button{font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 16px; border-radius:6px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-weight:600;}
+  .toggle-row button.active{background:var(--cyan); color:#FFFFFF; font-weight:700;}
+
+  .readout{display:flex; gap:28px; margin-top:18px; flex-wrap:wrap;}
+  .readout .item{font-family:'JetBrains Mono',monospace;}
+  .readout .item .l{font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;}
+  .readout .item .v{font-size:20px; font-weight:700; margin-top:2px;}
+
+  svg text{font-family:'JetBrains Mono',monospace;}
+  .svc-box, .sidecar, .pkt{transition:all .3s ease;}
+
+  .examples-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:26px;}
+  @media(max-width:760px){.examples-grid{grid-template-columns:1fr;}}
+  .ex-card{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:20px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .ex-card .ex-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;}
+  .ex-card h4{font-family:'Space Grotesk',sans-serif; font-size:16.5px; margin-bottom:6px;}
+  .ex-card p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .ex-card .tagrow{margin-top:12px; display:flex; gap:8px;}
+  .ex-card .tagrow span{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;}
+
+  .activity{background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:2px dashed var(--border); border-radius:16px; padding:28px; margin-top:26px;}
+  .activity-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .activity-head .pill{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; background:var(--amber); color:#FFFFFF; padding:3px 9px; border-radius:20px; font-weight:700;}
+  .activity h4{font-family:'Space Grotesk',sans-serif; font-size:19px;}
+  .activity p.instr{color:var(--muted); font-size:14px; margin-top:6px; margin-bottom:20px;}
+  .scenario{border:2px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; background:var(--panel);}
+  .scenario .stext{font-size:14.5px; margin-bottom:12px; line-height:1.55;}
+  .choices{display:flex; gap:10px; flex-wrap:wrap;}
+  .choice-btn{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer; background:var(--panel-2); border:2px solid var(--border); color:var(--text); font-weight:600; transition:all .15s;}
+  .choice-btn:hover{border-color:var(--cyan);}
+  .choice-btn.correct{background:rgba(21,128,61,0.15); border-color:var(--green); color:var(--green);}
+  .choice-btn.wrong{background:rgba(200,30,58,0.13); border-color:var(--coral); color:var(--coral);}
+  .choice-btn.disabled{pointer-events:none;}
+  .explain{display:none; margin-top:12px; font-size:13.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; line-height:1.6;}
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+  .score-bar{display:flex; align-items:center; gap:14px; margin-top:22px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted);}
+  .score-track{flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--border);}
+  .score-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--green)); transition:width .4s;}
+
+  .myth-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+  .myth{background:var(--panel); border:2px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .myth .x{color:var(--coral); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .myth .body b{display:block; font-size:14px; margin-bottom:4px;}
+  .myth .body p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  table.summary{width:100%; border-collapse:collapse; margin-top:20px; font-size:13px;}
+  table.summary th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:10px 10px; border-bottom:2px solid var(--border);}
+  table.summary td{padding:11px 10px; font-size:12.8px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+
+  footer{border-top:2px solid var(--border); padding:28px 0; text-align:center; color:var(--muted); font-size:12.5px; font-family:'JetBrains Mono',monospace; margin-top:60px;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="crumb"><span class="dot"></span>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS · 05</div>
+    <h1>Service Mesh, BFF <span class="hl">&amp;</span> API Composition</h1>
+    <p class="lead">Once a system has enough microservices, three new problems show up: how do services talk to each other reliably and securely (Service Mesh), how do wildly different client apps get the API shape they each need (BFF), and how does a client get data that's scattered across several services in one trip (API Composition)?</p>
+    </header>
+
+  <main>
+
+    <!-- ================= OVERVIEW ================= -->
+    <section>
+      <div class="sec-eyebrow">01 · THREE PATTERNS, THREE DIFFERENT PROBLEMS</div>
+      <div class="sec-title">Where each one sits in the system</div>
+      <p class="sec-desc">These solve different layers of the same underlying pain point: a microservices system has a lot of moving parts, and someone needs to manage the wiring between them.</p>
+
+      <div class="versus3">
+        <div class="vcard mesh">
+          <h3>Service Mesh</h3>
+          <p>Infrastructure that handles service-to-service communication — retries, encryption, load balancing, observability — without any application code changes.</p>
+          <div class="metrics-list"><span>internal traffic</span><span>sidecar proxies</span><span>Istio, Linkerd</span></div>
+        </div>
+        <div class="vcard bff">
+          <h3>Backend for Frontend (BFF)</h3>
+          <p>A dedicated backend layer per client type (mobile, web, partner), shaping and aggregating data exactly how that client needs it.</p>
+          <div class="metrics-list"><span>client-facing</span><span>one per client type</span><span>Netflix, Spotify</span></div>
+        </div>
+        <div class="vcard compose">
+          <h3>API Composition</h3>
+          <p>Combining data from multiple services into a single response, so a client makes one request instead of several.</p>
+          <div class="metrics-list"><span>data aggregation</span><span>parallel fan-out</span><span>GraphQL federation</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SIM 1: SERVICE MESH ================= -->
+    <section>
+      <div class="sec-eyebrow">02 · ANIMATION</div>
+      <div class="sec-title">Service Mesh — a sidecar next to every service</div>
+      <p class="sec-desc">Without a mesh, every service has to implement its own retries, encryption, and metrics. A mesh injects a small proxy ("sidecar") next to each service that handles all of that transparently.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — a call between two services, with and without a mesh</div>
+        <div class="toggle-row" id="meshToggle">
+          <button data-mode="without" class="active">Without a service mesh</button>
+          <button data-mode="with">With a service mesh</button>
+        </div>
+        <svg id="svgMesh" viewBox="0 0 900 220" width="100%" style="max-height:250px; margin-top:16px;"></svg>
+        <div class="controls">
+          <button class="btn coral" id="blipBtn">⚡ Simulate a network blip</button>
+          <button class="btn ghost" id="meshReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Who handles the retry?</div><div class="v" id="retryOwner" style="color:var(--muted)">—</div></div>
+          <div class="item"><div class="l">Encryption / metrics</div><div class="v" id="meshExtra" style="color:var(--muted)">—</div></div>
+        </div>
+        <p class="panel-note" id="meshNote">Toggle to "with a service mesh," then simulate a network blip to see who actually handles the retry.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 2: BFF ================= -->
+    <section>
+      <div class="sec-eyebrow">03 · ANIMATION</div>
+      <div class="sec-title">BFF — one API can't fit every client</div>
+      <p class="sec-desc">A mobile app on a slow connection needs a small, tailored response. A web dashboard wants the full picture. One generic API forces a compromise; a BFF per client removes it.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — one generic API vs a BFF per client</div>
+        <div class="toggle-row" id="bffToggle">
+          <button data-mode="generic" class="active">One generic API</button>
+          <button data-mode="bff">BFF per client</button>
+        </div>
+        <svg id="svgBff" viewBox="0 0 900 240" width="100%" style="max-height:270px; margin-top:16px;"></svg>
+        <div class="readout">
+          <div class="item"><div class="l">Mobile payload size</div><div class="v" id="mobilePayload" style="color:var(--coral)">—</div></div>
+          <div class="item"><div class="l">Web payload size</div><div class="v" id="webPayload" style="color:var(--cyan)">—</div></div>
+        </div>
+        <p class="panel-note" id="bffNote">A generic API returns the same shape to everyone — mobile gets fields it doesn't need (wasted bandwidth), or the web app has to make extra calls to fill gaps. Each BFF returns exactly what its client needs, aggregating from the same underlying services.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 3: API COMPOSITION ================= -->
+    <section>
+      <div class="sec-eyebrow">04 · ANIMATION</div>
+      <div class="sec-title">API Composition — one trip instead of three</div>
+      <p class="sec-desc">A product page needs product details, reviews, and live inventory — three separate services. Without composition, the client juggles three round trips itself.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — loading a product page, with and without a composer</div>
+        <div class="toggle-row" id="compToggle">
+          <button data-mode="client" class="active">Client calls 3 services itself</button>
+          <button data-mode="composer">API Composer fans out in parallel</button>
+        </div>
+        <svg id="svgComp" viewBox="0 0 900 220" width="100%" style="max-height:250px; margin-top:16px;"></svg>
+        <div class="controls">
+          <button class="btn amber" id="loadPageBtn">Load the product page</button>
+          <button class="btn ghost" id="compReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Round trips from the client</div><div class="v" id="compTrips" style="color:var(--coral)">—</div></div>
+          <div class="item"><div class="l">Total time</div><div class="v" id="compTime" style="color:var(--amber)">—</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= REAL WORLD EXAMPLES ================= -->
+    <section>
+      <div class="sec-eyebrow">05 · REAL-WORLD EXAMPLES</div>
+      <div class="sec-title">All three, in production</div>
+      <div class="examples-grid">
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(109,40,217,0.14); color:var(--violet);">🕸️</div>
+          <h4>Envoy Proxy, born at Lyft</h4>
+          <p>Lyft built Envoy to solve exactly the service mesh problem — consistent retries, load balancing, and observability across hundreds of services — and it's now the proxy underneath Istio and much of the industry's mesh tooling.</p>
+          <div class="tagrow"><span style="background:rgba(109,40,217,0.14); color:var(--violet);">SERVICE MESH</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(11,124,130,0.14); color:var(--cyan);">📺</div>
+          <h4>Netflix's per-device BFFs</h4>
+          <p>Netflix runs separate backend layers tailored to TVs, mobile apps, and web — each device has wildly different bandwidth, screen size, and interaction needs, and a single shared API couldn't serve all of them well.</p>
+          <div class="tagrow"><span style="background:rgba(11,124,130,0.14); color:var(--cyan);">BFF</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(180,83,9,0.14); color:var(--amber);">🧩</div>
+          <h4>GraphQL Federation</h4>
+          <p>Tools like Apollo Federation let a single GraphQL query fan out across many underlying services and stitch the results into one response — API composition as a first-class, declarative pattern instead of hand-written aggregation code.</p>
+          <div class="tagrow"><span style="background:rgba(180,83,9,0.14); color:var(--amber);">API COMPOSITION</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(200,30,58,0.14); color:var(--coral);">🛒</div>
+          <h4>Amazon's product page</h4>
+          <p>A single product page pulls together pricing, reviews, inventory, recommendations, and shipping estimates — each from a different backend team's service, composed into one page load rather than the browser making five separate round trips.</p>
+          <div class="tagrow"><span style="background:rgba(200,30,58,0.14); color:var(--coral);">API COMPOSITION</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MISCONCEPTIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">06 · COMMON CONFUSIONS</div>
+      <div class="sec-title">What students usually get wrong</div>
+      <div class="myth-list">
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"A service mesh and an API gateway are the same thing."</b><p>Different layers. An API gateway handles traffic coming <i>into</i> the system from outside ("north-south" traffic); a service mesh handles traffic <i>between</i> internal services ("east-west" traffic). Many systems use both.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"A BFF duplicates all the business logic for each client."</b><p>A well-built BFF is a thin aggregation and shaping layer, not a reimplementation of business rules — the actual logic still lives in the underlying services; the BFF just adapts the shape of the response.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"API composition is just another name for an API gateway."</b><p>A gateway typically routes one request to one service. Composition specifically means combining data from <i>multiple</i> services into a single response — a meaningfully different job, even though a gateway or BFF often does both.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section>
+      <div class="sec-eyebrow">07 · IN-CLASS ACTIVITY</div>
+      <div class="sec-title">Which pattern solves this?</div>
+      <div class="activity" id="act1">
+        <div class="activity-head"><span class="pill">GRADED</span></div>
+        <h4>Service Mesh, BFF, or API Composition?</h4>
+        <p class="instr">For each problem, pick the pattern that solves it best.</p>
+
+        <div class="scenario" data-answer="mesh">
+          <div class="stext">1. Every one of 40 microservices has its own, slightly different, hand-written retry and timeout logic — and half of them get it wrong.</div>
+          <div class="choices"><button class="choice-btn" data-val="mesh">Service Mesh</button><button class="choice-btn" data-val="bff">BFF</button><button class="choice-btn" data-val="compose">API Composition</button></div>
+          <div class="explain">Best fit: <b>Service Mesh</b>. A mesh applies consistent retry, timeout, and encryption policy across every service automatically, without each team reimplementing it themselves.</div>
+        </div>
+
+        <div class="scenario" data-answer="bff">
+          <div class="stext">2. The mobile team keeps asking the API team for a smaller response payload, while the web team keeps asking for more fields — on the same endpoint.</div>
+          <div class="choices"><button class="choice-btn" data-val="mesh">Service Mesh</button><button class="choice-btn" data-val="bff">BFF</button><button class="choice-btn" data-val="compose">API Composition</button></div>
+          <div class="explain">Best fit: <b>BFF</b>. Each client type gets its own tailored backend, so mobile and web stop fighting over the shape of one shared endpoint.</div>
+        </div>
+
+        <div class="scenario" data-answer="compose">
+          <div class="stext">3. A single dashboard screen needs data from 5 different services, and today the browser makes 5 separate slow round trips to load it.</div>
+          <div class="choices"><button class="choice-btn" data-val="mesh">Service Mesh</button><button class="choice-btn" data-val="bff">BFF</button><button class="choice-btn" data-val="compose">API Composition</button></div>
+          <div class="explain">Best fit: <b>API Composition</b>. One composer service fans out to all 5 services in parallel and returns a single merged response, cutting 5 round trips down to 1.</div>
+        </div>
+
+        <div class="scenario" data-answer="mesh">
+          <div class="stext">4. Security wants every internal service-to-service call encrypted (mTLS), without asking every team to add encryption code to their own service.</div>
+          <div class="choices"><button class="choice-btn" data-val="mesh">Service Mesh</button><button class="choice-btn" data-val="bff">BFF</button><button class="choice-btn" data-val="compose">API Composition</button></div>
+          <div class="explain">Best fit: <b>Service Mesh</b>. Encrypting all internal traffic transparently, without touching application code, is one of a service mesh's signature capabilities.</div>
+        </div>
+
+        <div class="score-bar"><span>SCORE</span><div class="score-track"><div class="score-fill" id="scoreFill1"></div></div><span id="scoreText1">0 / 4</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SUMMARY ================= -->
+    <section>
+      <div class="sec-eyebrow">08 · SUMMARY</div>
+      <div class="sec-title">Quick reference</div>
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Pattern</th><th style="color:var(--violet)">Service Mesh</th><th style="color:var(--cyan)">BFF</th><th style="color:var(--amber)">API Composition</th></tr>
+          <tr><td>Solves</td><td>Reliable, secure, observable service-to-service calls</td><td>Different clients needing different API shapes</td><td>Data scattered across multiple services</td></tr>
+          <tr><td>Sits where</td><td>Between internal services (sidecars)</td><td>Between clients and services</td><td>Between a client and multiple services</td></tr>
+          <tr><td>Traffic direction</td><td>East-west (internal)</td><td>North-south (client-facing)</td><td>North-south, fanning out east-west</td></tr>
+          <tr><td>Example tools</td><td>Istio, Linkerd, Envoy</td><td>Custom BFF services per client</td><td>GraphQL Federation, custom aggregators</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS 05 / 05 · Service Mesh, BFF &amp; API Composition · reduced-motion friendly</footer>
+
+<script>
+function colorOf(v){ const t=document.createElement('div'); t.style.color=v; document.body.appendChild(t); const c=getComputedStyle(t).color; t.remove(); return c; }
+function spawnPacket(svgEl, x1,y1,x2,y2,color,dur,onComplete){
+  const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('cx',x1); c.setAttribute('cy',y1); c.setAttribute('r','7');
+  c.setAttribute('fill',color); c.style.transition = `all ${dur}ms linear`; c.classList.add('pkt');
+  svgEl.appendChild(c);
+  requestAnimationFrame(()=>{ c.setAttribute('cx',x2); c.setAttribute('cy',y2); });
+  setTimeout(()=>{ c.remove(); if(onComplete) onComplete(); }, dur+40);
+}
+
+/* ================= SERVICE MESH ================= */
+const svgMesh = document.getElementById('svgMesh');
+let meshMode = 'without';
+function buildMeshBase(){
+  let svg='';
+  svg += `<rect id="svcA" x="100" y="80" width="180" height="70" rx="10" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="2.5"/>`;
+  svg += `<text x="190" y="120" fill="var(--cyan)" font-size="12" text-anchor="middle" font-weight="700">Order Service</text>`;
+  svg += `<rect id="svcB" x="620" y="80" width="180" height="70" rx="10" fill="var(--panel-2)" stroke="var(--coral)" stroke-width="2.5"/>`;
+  svg += `<text x="710" y="120" fill="var(--coral)" font-size="12" text-anchor="middle" font-weight="700">Payment Service</text>`;
+  if(meshMode==='without'){
+    svg += `<line x1="280" y1="115" x2="620" y2="115" stroke="var(--border)" stroke-width="2.5"/>`;
+    svg += `<text x="450" y="100" fill="var(--muted)" font-size="10" text-anchor="middle">direct call — retry logic hand-written inside Order Service</text>`;
+  } else {
+    svg += `<rect x="280" y="95" width="60" height="40" rx="8" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2.5"/>`;
+    svg += `<text x="310" y="119" fill="var(--violet)" font-size="9" text-anchor="middle" font-weight="700">sidecar</text>`;
+    svg += `<rect x="560" y="95" width="60" height="40" rx="8" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2.5"/>`;
+    svg += `<text x="590" y="119" fill="var(--violet)" font-size="9" text-anchor="middle" font-weight="700">sidecar</text>`;
+    svg += `<line x1="280" y1="115" x2="280" y2="115" stroke="none"/>`;
+    svg += `<line x1="340" y1="115" x2="560" y2="115" stroke="var(--violet)" stroke-width="2.5"/>`;
+    svg += `<text x="450" y="100" fill="var(--violet)" font-size="10" text-anchor="middle">sidecars handle retry, encryption &amp; metrics — app code untouched</text>`;
+  }
+  svgMesh.innerHTML = svg;
+}
+buildMeshBase();
+document.getElementById('meshToggle').addEventListener('click',(e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#meshToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  meshMode = btn.dataset.mode;
+  buildMeshBase();
+  document.getElementById('retryOwner').textContent='—';
+  document.getElementById('meshExtra').textContent='—';
+  document.getElementById('meshNote').textContent = meshMode==='without'
+    ? 'Simulate a network blip and see who has to notice and retry the failed call.'
+    : 'Simulate a network blip — this time watch the sidecar catch it instead of Order Service\'s own code.';
+});
+document.getElementById('blipBtn').addEventListener('click', ()=>{
+  buildMeshBase();
+  if(meshMode==='without'){
+    spawnPacket(svgMesh, 280,115, 450,115, colorOf('var(--coral)'), 350, ()=>{
+      document.getElementById('retryOwner').textContent = "Order Service's own code";
+      document.getElementById('retryOwner').style.color = colorOf('var(--coral)');
+      document.getElementById('meshExtra').textContent = 'Not handled — each team must add it';
+      document.getElementById('meshExtra').style.color = colorOf('var(--coral)');
+      document.getElementById('meshNote').innerHTML = '<b>Without a mesh:</b> Order Service\'s own code has to detect the failed call and retry it — and every one of the other 39 services in the system needs the same logic written (and maintained) separately.';
+    });
+  } else {
+    spawnPacket(svgMesh, 340,115, 450,115, colorOf('var(--coral)'), 250, ()=>{
+      spawnPacket(svgMesh, 450,115, 340,115, colorOf('var(--amber)'), 250, ()=>{
+        spawnPacket(svgMesh, 340,115, 560,115, colorOf('var(--violet)'), 350, ()=>{
+          document.getElementById('retryOwner').textContent = 'The sidecar proxy';
+          document.getElementById('retryOwner').style.color = colorOf('var(--violet)');
+          document.getElementById('meshExtra').textContent = 'Automatic — same policy everywhere';
+          document.getElementById('meshExtra').style.color = colorOf('var(--violet)');
+          document.getElementById('meshNote').innerHTML = '<b>With a mesh:</b> the sidecar detected the failed attempt, retried automatically, and Order Service\'s code never even knew there was a blip — and this exact same behavior applies uniformly to all 40 services.';
+        });
+      });
+    });
+  }
+});
+document.getElementById('meshReset').addEventListener('click', ()=>{
+  buildMeshBase();
+  document.getElementById('retryOwner').textContent='—';
+  document.getElementById('meshExtra').textContent='—';
+});
+
+/* ================= BFF ================= */
+const svgBff = document.getElementById('svgBff');
+let bffMode = 'generic';
+function buildBffBase(){
+  let svg='';
+  svg += `<rect x="30" y="30" width="140" height="55" rx="9" fill="var(--panel-2)" stroke="var(--coral)" stroke-width="2.5"/>`;
+  svg += `<text x="100" y="63" fill="var(--coral)" font-size="11" text-anchor="middle" font-weight="700">📱 Mobile App</text>`;
+  svg += `<rect x="30" y="150" width="140" height="55" rx="9" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="2.5"/>`;
+  svg += `<text x="100" y="183" fill="var(--cyan)" font-size="11" text-anchor="middle" font-weight="700">💻 Web App</text>`;
+
+  if(bffMode==='generic'){
+    svg += `<rect x="330" y="90" width="180" height="60" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2.5"/>`;
+    svg += `<text x="420" y="125" fill="var(--text)" font-size="11.5" text-anchor="middle" font-weight="700">One Generic API</text>`;
+    svg += `<line x1="170" y1="57" x2="330" y2="110" stroke="var(--border)" stroke-width="2"/>`;
+    svg += `<line x1="170" y1="177" x2="330" y2="130" stroke="var(--border)" stroke-width="2"/>`;
+    svg += `<line x1="510" y1="120" x2="650" y2="120" stroke="var(--border)" stroke-width="2"/>`;
+    svg += `<rect x="650" y="90" width="200" height="60" rx="10" fill="var(--panel-2)" stroke="var(--amber)" stroke-width="2.5"/>`;
+    svg += `<text x="750" y="115" fill="var(--amber)" font-size="10" text-anchor="middle" font-weight="700">Same big response</text>`;
+    svg += `<text x="750" y="132" fill="var(--muted)" font-size="9" text-anchor="middle">→ both clients get it, wanted or not</text>`;
+    document.getElementById('mobilePayload').textContent = '48 KB (over-fetched)';
+    document.getElementById('mobilePayload').style.color = colorOf('var(--coral)');
+    document.getElementById('webPayload').textContent = '48 KB (missing extras)';
+    document.getElementById('webPayload').style.color = colorOf('var(--coral)');
+    document.getElementById('bffNote').innerHTML = '<b>One generic API:</b> mobile receives the full 48KB payload meant for a desktop dashboard — mostly wasted on a phone screen — while the web app still needs extra follow-up calls for fields the generic shape left out.';
+  } else {
+    svg += `<rect x="330" y="20" width="150" height="55" rx="9" fill="var(--panel-2)" stroke="var(--coral)" stroke-width="2.5"/>`;
+    svg += `<text x="405" y="53" fill="var(--coral)" font-size="10.5" text-anchor="middle" font-weight="700">Mobile BFF</text>`;
+    svg += `<rect x="330" y="160" width="150" height="55" rx="9" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="2.5"/>`;
+    svg += `<text x="405" y="193" fill="var(--cyan)" font-size="10.5" text-anchor="middle" font-weight="700">Web BFF</text>`;
+    svg += `<line x1="170" y1="57" x2="330" y2="47" stroke="var(--coral)" stroke-width="2"/>`;
+    svg += `<line x1="170" y1="177" x2="330" y2="187" stroke="var(--cyan)" stroke-width="2"/>`;
+    svg += `<line x1="480" y1="47" x2="640" y2="110" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+    svg += `<line x1="480" y1="187" x2="640" y2="130" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+    svg += `<rect x="640" y="90" width="200" height="60" rx="10" fill="var(--panel-2)" stroke="var(--amber)" stroke-width="2.5"/>`;
+    svg += `<text x="740" y="115" fill="var(--amber)" font-size="10" text-anchor="middle" font-weight="700">Shared microservices</text>`;
+    svg += `<text x="740" y="132" fill="var(--muted)" font-size="9" text-anchor="middle">same source of truth</text>`;
+    document.getElementById('mobilePayload').textContent = '6 KB (exactly what it needs)';
+    document.getElementById('mobilePayload').style.color = colorOf('var(--green)');
+    document.getElementById('webPayload').textContent = '48 KB (full dashboard shape)';
+    document.getElementById('webPayload').style.color = colorOf('var(--green)');
+    document.getElementById('bffNote').innerHTML = '<b>BFF per client:</b> both BFFs call the exact same underlying services, but each shapes and trims the response for its own client — mobile gets a lean 6KB payload, web gets the full picture, and neither compromises for the other.';
+  }
+  svgBff.innerHTML = svg;
+}
+buildBffBase();
+document.getElementById('bffToggle').addEventListener('click',(e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#bffToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  bffMode = btn.dataset.mode;
+  buildBffBase();
+});
+
+/* ================= API COMPOSITION ================= */
+const svgComp = document.getElementById('svgComp');
+let compMode = 'client';
+function buildCompBase(){
+  let svg='';
+  svg += `<rect x="30" y="80" width="140" height="60" rx="9" fill="var(--panel-2)" stroke="var(--coral)" stroke-width="2.5"/>`;
+  svg += `<text x="100" y="115" fill="var(--coral)" font-size="11.5" text-anchor="middle" font-weight="700">Client</text>`;
+  const services = [
+    {label:'Product Service', y:20, color:'var(--cyan)'},
+    {label:'Reviews Service', y:90, color:'var(--violet)'},
+    {label:'Inventory Service', y:160, color:'var(--green)'},
+  ];
+  if(compMode==='client'){
+    services.forEach(s=>{
+      svg += `<rect id="svc-${s.label.replace(/\\s/g,'')}" x="620" y="${s.y}" width="200" height="55" rx="9" fill="var(--panel-2)" stroke="${s.color}" stroke-width="2.5"/>`;
+      svg += `<text x="720" y="${s.y+32}" fill="${s.color}" font-size="10.5" text-anchor="middle" font-weight="700">${s.label}</text>`;
+      svg += `<line x1="170" y1="110" x2="620" y2="${s.y+27}" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+    });
+    svg += `<text x="450" y="20" fill="var(--muted)" font-size="10" text-anchor="middle">client makes 3 separate round trips, one after another</text>`;
+  } else {
+    svg += `<rect x="330" y="80" width="180" height="60" rx="10" fill="var(--panel-2)" stroke="var(--amber)" stroke-width="3"/>`;
+    svg += `<text x="420" y="115" fill="var(--amber)" font-size="11.5" text-anchor="middle" font-weight="700">API Composer</text>`;
+    svg += `<line x1="170" y1="110" x2="330" y2="110" stroke="var(--border)" stroke-width="2.5"/>`;
+    services.forEach(s=>{
+      svg += `<rect id="svc-${s.label.replace(/\\s/g,'')}" x="620" y="${s.y}" width="200" height="55" rx="9" fill="var(--panel-2)" stroke="${s.color}" stroke-width="2.5"/>`;
+      svg += `<text x="720" y="${s.y+32}" fill="${s.color}" font-size="10.5" text-anchor="middle" font-weight="700">${s.label}</text>`;
+      svg += `<line x1="510" y1="110" x2="620" y2="${s.y+27}" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+    });
+    svg += `<text x="450" y="20" fill="var(--muted)" font-size="10" text-anchor="middle">composer fans out to all 3 in parallel, merges, returns once</text>`;
+  }
+  svgComp.innerHTML = svg;
+}
+buildCompBase();
+document.getElementById('compToggle').addEventListener('click',(e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#compToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  compMode = btn.dataset.mode;
+  buildCompBase();
+  document.getElementById('compTrips').textContent='—';
+  document.getElementById('compTime').textContent='—';
+});
+document.getElementById('loadPageBtn').addEventListener('click', ()=>{
+  buildCompBase();
+  const svcYs = [20,90,160];
+  if(compMode==='client'){
+    document.getElementById('compTrips').textContent = '3, one after another';
+    document.getElementById('compTrips').style.color = colorOf('var(--coral)');
+    let delay=0;
+    svcYs.forEach((y,i)=>{
+      setTimeout(()=>{
+        spawnPacket(svgComp, 170,110, 620,y+27, colorOf('var(--coral)'), 400, ()=>{
+          spawnPacket(svgComp, 620,y+27, 170,110, colorOf('var(--coral)'), 400, ()=>{
+            if(i===2){
+              document.getElementById('compTime').textContent = '~2400ms (sequential)';
+              document.getElementById('compTime').style.color = colorOf('var(--coral)');
+            }
+          });
+        });
+      }, delay);
+      delay += 900;
+    });
+  } else {
+    document.getElementById('compTrips').textContent = '1, from the client';
+    document.getElementById('compTrips').style.color = colorOf('var(--green)');
+    spawnPacket(svgComp, 170,110, 330,110, colorOf('var(--amber)'), 300, ()=>{
+      svcYs.forEach(y=>{
+        spawnPacket(svgComp, 510,110, 620,y+27, colorOf('var(--amber)'), 400, ()=>{
+          spawnPacket(svgComp, 620,y+27, 510,110, colorOf('var(--amber)'), 400);
+        });
+      });
+      setTimeout(()=>{
+        spawnPacket(svgComp, 330,110, 170,110, colorOf('var(--green)'), 300, ()=>{
+          document.getElementById('compTime').textContent = '~900ms (parallel)';
+          document.getElementById('compTime').style.color = colorOf('var(--green)');
+        });
+      }, 850);
+    });
+  }
+});
+document.getElementById('compReset').addEventListener('click', ()=>{
+  buildCompBase();
+  document.getElementById('compTrips').textContent='—';
+  document.getElementById('compTime').textContent='—';
+});
+
+/* ================= ACTIVITY SCORING ================= */
+function wireActivity(containerId, fillId, textId){
+  const container = document.getElementById(containerId);
+  const scenarios = container.querySelectorAll('.scenario');
+  let correctCount = 0;
+  scenarios.forEach(sc=>{
+    const answer = sc.dataset.answer;
+    const btns = sc.querySelectorAll('.choice-btn');
+    const explain = sc.querySelector('.explain');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.classList.contains('disabled')) return;
+        btns.forEach(x=>x.classList.add('disabled'));
+        if(b.dataset.val === answer){ b.classList.add('correct'); correctCount++; }
+        else { b.classList.add('wrong'); btns.forEach(x=>{ if(x.dataset.val===answer) x.classList.add('correct'); }); }
+        explain.classList.add('show');
+        const pct = Math.round(100*correctCount/scenarios.length);
+        document.getElementById(fillId).style.width = pct+'%';
+        document.getElementById(textId).textContent = correctCount+' / '+scenarios.length;
+      });
+    });
+  });
+}
+wireActivity('act1','scoreFill1','scoreText1');
+</script>
+</body>
+</html>

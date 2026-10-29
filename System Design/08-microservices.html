@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Architectural Patterns 02 — Microservices</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#F7F9FC; --panel-2:#E7ECF3; --border:#5C6B84;
+    --text:#0F172A; --muted:#3F4C60;
+    --cyan:#0B7C82; --amber:#B45309; --coral:#C81E3A; --violet:#6D28D9; --green:#15803D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;}
+  ::selection{background:var(--cyan); color:#FFFFFF;}
+  body{
+    background-image:linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size:36px 36px;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding:0 24px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header{padding:52px 0 34px;}
+  .crumb{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:2.5px; color:var(--cyan); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .crumb .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(30px,5vw,50px); line-height:1.06; margin-top:14px; letter-spacing:-0.5px;}
+  h1 .hl{color:var(--cyan);}
+  .lead{color:var(--muted); font-size:16px; max-width:680px; margin-top:16px; line-height:1.6;}
+
+  .hero-anim{margin-top:34px; background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:24px; position:relative; box-shadow:0 4px 14px rgba(15,23,42,0.08);}
+  .hero-anim .cap{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .hero-anim .cap::before{content:'▸'; color:var(--cyan);}
+
+  main{padding:10px 0 100px;}
+  section{margin-top:56px;}
+  .sec-eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber);}
+  .sec-title{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:8px;}
+  .sec-desc{color:var(--muted); font-size:15px; margin-top:10px; max-width:720px; line-height:1.65;}
+
+  .versus{display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:stretch; margin-top:26px;}
+  @media(max-width:760px){.versus{grid-template-columns:1fr;}}
+  .vcard{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:24px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .vcard.a{border-top:4px solid var(--green);} .vcard.b{border-top:4px solid var(--coral);}
+  .vcard h3{font-family:'Space Grotesk',sans-serif; font-size:20px; margin-bottom:10px;}
+  .vcard.a h3{color:var(--green);} .vcard.b h3{color:var(--coral);}
+  .vcard p{color:var(--muted); font-size:14px; line-height:1.65;}
+  .vcard ul{margin-top:12px; padding-left:18px; color:var(--muted); font-size:13.5px; line-height:1.8;}
+  .vcard .metrics-list{margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;}
+  .vcard .metrics-list span{font-family:'JetBrains Mono',monospace; font-size:11px; background:var(--panel-2); border:1px solid var(--border); padding:4px 9px; border-radius:6px; color:var(--text);}
+  .vs-mid{display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--muted); font-size:14px;}
+
+  .panel{background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:26px; margin-top:26px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .panel-label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+  .panel-label::before{content:'▸'; color:var(--cyan);}
+  .panel-note{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.6; border-top:1px solid var(--border); padding-top:14px;}
+  .panel-note b{color:var(--text);}
+
+  .controls{display:flex; gap:14px; flex-wrap:wrap; margin-top:20px; align-items:center;}
+  button.btn{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:#FFFFFF; background:var(--cyan); border:none; border-radius:8px; padding:11px 18px; cursor:pointer; transition:transform .15s, opacity .15s;}
+  button.btn:hover{transform:translateY(-1px); opacity:.9;}
+  button.btn.ghost{background:transparent; color:var(--text); border:2px solid var(--border);}
+  button.btn.violet{background:var(--violet);}
+  button.btn.amber{background:var(--amber);}
+  button.btn.coral{background:var(--coral);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+  .toggle-row{display:flex; gap:8px; background:var(--panel-2); border:2px solid var(--border); border-radius:9px; padding:4px; width:fit-content; flex-wrap:wrap;}
+  .toggle-row button{font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 16px; border-radius:6px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-weight:600;}
+  .toggle-row button.active{background:var(--cyan); color:#FFFFFF; font-weight:700;}
+
+  .readout{display:flex; gap:28px; margin-top:18px; flex-wrap:wrap;}
+  .readout .item{font-family:'JetBrains Mono',monospace;}
+  .readout .item .l{font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;}
+  .readout .item .v{font-size:22px; font-weight:700; margin-top:2px;}
+
+  svg text{font-family:'JetBrains Mono',monospace;}
+  .svc-box, .db-box, .instance-box{transition:all .35s ease;}
+
+  .examples-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:26px;}
+  @media(max-width:760px){.examples-grid{grid-template-columns:1fr;}}
+  .ex-card{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .ex-card .ex-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;}
+  .ex-card h4{font-family:'Space Grotesk',sans-serif; font-size:16.5px; margin-bottom:6px;}
+  .ex-card p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .ex-card .tagrow{margin-top:12px; display:flex; gap:8px;}
+  .ex-card .tagrow span{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;}
+
+  .activity{background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:2px dashed var(--border); border-radius:16px; padding:28px; margin-top:26px;}
+  .activity-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .activity-head .pill{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; background:var(--amber); color:#FFFFFF; padding:3px 9px; border-radius:20px; font-weight:700;}
+  .activity h4{font-family:'Space Grotesk',sans-serif; font-size:19px;}
+  .activity p.instr{color:var(--muted); font-size:14px; margin-top:6px; margin-bottom:20px;}
+  .scenario{border:2px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; background:var(--panel);}
+  .scenario .stext{font-size:14.5px; margin-bottom:12px; line-height:1.55;}
+  .choices{display:flex; gap:10px; flex-wrap:wrap;}
+  .choice-btn{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer; background:var(--panel-2); border:2px solid var(--border); color:var(--text); font-weight:600; transition:all .15s;}
+  .choice-btn:hover{border-color:var(--cyan);}
+  .choice-btn.correct{background:rgba(21,128,61,0.15); border-color:var(--green); color:var(--green);}
+  .choice-btn.wrong{background:rgba(200,30,58,0.13); border-color:var(--coral); color:var(--coral);}
+  .choice-btn.disabled{pointer-events:none;}
+  .explain{display:none; margin-top:12px; font-size:13.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; line-height:1.6;}
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+  .score-bar{display:flex; align-items:center; gap:14px; margin-top:22px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted);}
+  .score-track{flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--border);}
+  .score-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--green)); transition:width .4s;}
+
+  .myth-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+  .myth{background:var(--panel); border:2px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .myth .x{color:var(--coral); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .myth .body b{display:block; font-size:14px; margin-bottom:4px;}
+  .myth .body p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  table.summary{width:100%; border-collapse:collapse; margin-top:20px;}
+  table.summary th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:10px 12px; border-bottom:2px solid var(--border);}
+  table.summary td{padding:12px; font-size:13.5px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+
+  footer{border-top:2px solid var(--border); padding:28px 0; text-align:center; color:var(--muted); font-size:12.5px; font-family:'JetBrains Mono',monospace; margin-top:60px;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="crumb"><span class="dot"></span>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS · 02</div>
+    <h1>Micro<span class="hl">services</span></h1>
+    <p class="lead">Instead of one building with every department inside, imagine a <b>street of independent shops</b> — each one owns its own space, staff, and stock, and can renovate or close for the day without shutting down the whole street. That's the shift from a monolith to microservices.</p>
+
+    <div class="hero-anim">
+      <div class="cap">Opening picture — a street of independent shops</div>
+      <svg id="svgStreet" viewBox="0 0 900 260" width="100%" style="max-height:290px; display:block;"></svg>
+      <p class="panel-note">Each "shop" — Orders, Payments, Inventory, Notifications — is its own small, independently deployable service with its own codebase, its own database, and a clearly defined "storefront" (API) that other shops talk to. Nobody reaches behind the counter into another shop's stockroom.</p>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= DEFINITIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">01 · CORE DEFINITION</div>
+      <div class="sec-title">What actually makes something "microservices"</div>
+      <p class="sec-desc">Microservices architecture splits an application into small, independently deployable services, each owning a specific business capability.</p>
+
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Trait</th><th>What it means in practice</th></tr>
+          <tr><td class="mono">Independently deployable</td><td>Each service ships on its own schedule, without waiting on or rebuilding any other service.</td></tr>
+          <tr><td class="mono">Owns its data</td><td>Each service typically has its own database — no other service reaches into it directly.</td></tr>
+          <tr><td class="mono">Communicates over the network</td><td>Services call each other via APIs (HTTP/REST, gRPC) or asynchronous messages — never in-process function calls.</td></tr>
+          <tr><td class="mono">Organized by business capability</td><td>Boundaries are drawn around things like "Orders" or "Payments," not technical layers like "controllers."</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= SIM 1: INDEPENDENT DEPLOYMENT ================= -->
+    <section>
+      <div class="sec-eyebrow">02 · ANIMATION</div>
+      <div class="sec-title">Deploy one shop, leave the street alone</div>
+      <p class="sec-desc">This is the mirror image of the monolith's deploy problem. Pick any single service and ship a change to it — watch the rest stay completely untouched.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — click any service to deploy just that one</div>
+        <svg id="svgDeploy" viewBox="0 0 900 200" width="100%" style="max-height:220px;"></svg>
+        <div class="controls">
+          <button class="btn ghost" id="deployReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Services rebuilt</div><div class="v" id="deployCount" style="color:var(--muted)">0 / 1</div></div>
+          <div class="item"><div class="l">Deploy status</div><div class="v" id="deployStatus" style="color:var(--muted)">Idle</div></div>
+        </div>
+        <p class="panel-note" id="deployNote">Click any service box above to deploy just that one service.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 2: CALL CHAIN & CASCADING FAILURE ================= -->
+    <section>
+      <div class="sec-eyebrow">03 · ANIMATION</div>
+      <div class="sec-title">Requests now travel over the network, hop by hop</div>
+      <p class="sec-desc">Placing one order might mean four separate network calls between services. Each hop adds latency — and if one service is unavailable, the whole chain can break.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — place an order, then simulate an outage</div>
+        <svg id="svgChain" viewBox="0 0 900 220" width="100%" style="max-height:250px;"></svg>
+        <div class="controls">
+          <button class="btn" id="placeOrder">▶ Place an order</button>
+          <button class="btn coral" id="toggleOutage">⚡ Take Payment Service down</button>
+          <button class="btn ghost" id="chainReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Network hops</div><div class="v" id="hopCount" style="color:var(--coral)">4</div></div>
+          <div class="item"><div class="l">Total latency</div><div class="v" id="chainLatency" style="color:var(--amber)">—</div></div>
+          <div class="item"><div class="l">Payment Service</div><div class="v" id="paymentStatus" style="color:var(--green)">Healthy</div></div>
+        </div>
+        <p class="panel-note" id="chainNote">Compare this to the monolith's in-process request from Module 01 — that one took under half a millisecond with zero chance of a "service unavailable" error. This is the real price of independent deployability: latency and partial failure become part of every single request.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 3: DATABASE PER SERVICE ================= -->
+    <section>
+      <div class="sec-eyebrow">04 · ANIMATION</div>
+      <div class="sec-title">Every service owns its own database</div>
+      <p class="sec-desc">No shared database means no service can quietly depend on another's internal schema — but it also means data that used to be one query away now has to travel between services to stay in sync.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — an order event syncing data across databases</div>
+        <svg id="svgDbSync" viewBox="0 0 900 220" width="100%" style="max-height:250px;"></svg>
+        <div class="controls">
+          <button class="btn violet" id="syncBtn">Sync order data to Inventory &amp; Notifications</button>
+          <button class="btn ghost" id="syncReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Databases</div><div class="v" id="dbCount" style="color:var(--cyan)">3, independent</div></div>
+          <div class="item"><div class="l">Consistency model</div><div class="v" id="consistencyModel" style="color:var(--amber)">Eventual</div></div>
+        </div>
+        <p class="panel-note">Notice this takes a moment to propagate — for a brief window, Inventory and Notifications don't yet know about the new order. This is <b>eventual consistency</b>, the same idea from the Availability vs Consistency module, showing up again here as a direct consequence of splitting the database.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 4: INDEPENDENT SCALING ================= -->
+    <section>
+      <div class="sec-eyebrow">05 · ANIMATION</div>
+      <div class="sec-title">Scale only the service that's actually hot</div>
+      <p class="sec-desc">Unlike the monolith, which had to duplicate the entire application to relieve one busy feature, microservices let you scale exactly the piece under load.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — scale only Search, leave everything else alone</div>
+        <svg id="svgScaleMicro" viewBox="0 0 900 220" width="100%" style="max-height:250px;"></svg>
+        <div class="controls">
+          <button class="btn" id="addSearchInstance">+ Add another Search instance</button>
+          <button class="btn ghost" id="scaleMicroReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Search instances</div><div class="v" id="searchInstances" style="color:var(--cyan)">1</div></div>
+          <div class="item"><div class="l">Checkout / Payments / Profile</div><div class="v" id="otherInstances" style="color:var(--green)">Untouched, 1 each</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PROS & CONS ================= -->
+    <section>
+      <div class="sec-eyebrow">06 · TRADE-OFFS</div>
+      <div class="sec-title">Where microservices genuinely win — and where they hurt</div>
+      <div class="versus">
+        <div class="vcard a">
+          <h3>Strengths</h3>
+          <ul>
+            <li>Teams deploy independently, without waiting on or blocking each other</li>
+            <li>Scale exactly the services under load, not the whole application</li>
+            <li>Different services can use different languages/databases suited to their job</li>
+            <li>A crash in one service doesn't necessarily take the whole system down</li>
+          </ul>
+        </div>
+        <div class="vs-mid">VS</div>
+        <div class="vcard b">
+          <h3>Weaknesses</h3>
+          <ul>
+            <li>Distributed systems problems appear everywhere: latency, partial failure, retries</li>
+            <li>Testing and debugging span multiple services and machines</li>
+            <li>Data consistency requires real engineering effort (events, sagas, eventual consistency)</li>
+            <li>Operational overhead — service discovery, deployment pipelines, monitoring, per service</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= REAL WORLD EXAMPLES ================= -->
+    <section>
+      <div class="sec-eyebrow">07 · REAL-WORLD EXAMPLES</div>
+      <div class="sec-title">Microservices in serious production use</div>
+      <div class="examples-grid">
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(11,124,130,0.14); color:var(--cyan);">🎬</div>
+          <h4>Netflix — hundreds of independent services</h4>
+          <p>Netflix runs over 1,000 microservices, each independently deployable, so hundreds of teams can ship changes daily without coordinating a single, shared release. They also pioneered "Chaos Monkey" to deliberately test resilience to the partial failures this architecture introduces.</p>
+          <div class="tagrow"><span style="background:rgba(11,124,130,0.14); color:var(--cyan);">SCALED WELL</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(180,83,9,0.14); color:var(--amber);">🍕</div>
+          <h4>Amazon's "two-pizza team" mandate</h4>
+          <p>Amazon's internal mandate that every team should be small enough to feed with two pizzas, each owning its own service end-to-end via APIs only, is often credited as one of the origins of the microservices movement at scale.</p>
+          <div class="tagrow"><span style="background:rgba(180,83,9,0.14); color:var(--amber);">ORGANIZATIONAL</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(200,30,58,0.14); color:var(--coral);">🚕</div>
+          <h4>Uber's microservice sprawl</h4>
+          <p>Uber grew to over 2,200 microservices at one point, and later had to invest heavily in tooling just to manage the resulting operational complexity — a widely cited cautionary tale about splitting services faster than your tooling can support.</p>
+          <div class="tagrow"><span style="background:rgba(200,30,58,0.14); color:var(--coral);">CAUTIONARY TALE</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(109,40,217,0.14); color:var(--violet);">🛒</div>
+          <h4>Amazon.com's checkout &amp; catalog split</h4>
+          <p>Product catalog browsing and checkout have wildly different traffic patterns and failure tolerance — splitting them lets Amazon scale browsing traffic (huge, read-heavy) completely separately from the more sensitive, transactional checkout path.</p>
+          <div class="tagrow"><span style="background:rgba(109,40,217,0.14); color:var(--violet);">DIFFERENT SCALING NEEDS</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MISCONCEPTIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">08 · COMMON CONFUSIONS</div>
+      <div class="sec-title">What students usually get wrong</div>
+      <div class="myth-list">
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Microservices are always the better, more modern choice."</b><p>They trade one set of problems (deploy contention, coarse scaling) for another (network latency, partial failure, operational overhead). Neither is universally "better" — it depends on team size, scale, and how independent the domains actually are.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Smaller services automatically make the system simpler."</b><p>The opposite is often true — you've moved complexity out of the code and into the network, where it's harder to see: more moving parts, more failure modes, more to monitor.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Services should be as small as possible."</b><p>Splitting too aggressively ("nanoservices") multiplies network calls for no real benefit. Good boundaries follow real business capabilities, not an arbitrary size target.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section>
+      <div class="sec-eyebrow">09 · IN-CLASS ACTIVITY</div>
+      <div class="sec-title">Good fit or bad fit for microservices?</div>
+      <div class="activity" id="act1">
+        <div class="activity-head"><span class="pill">GRADED</span></div>
+        <h4>Should this team split into microservices?</h4>
+        <p class="instr">For each scenario, decide whether microservices are a reasonable choice right now.</p>
+
+        <div class="scenario" data-answer="bad">
+          <div class="stext">1. A 3-person team building a new product, with no users yet and requirements still changing weekly.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>bad fit</b>, for now. Splitting services requires knowing where the boundaries should be — and that's usually unclear until the domain has stabilized. A monolith lets them change their mind cheaply.</div>
+        </div>
+
+        <div class="scenario" data-answer="good">
+          <div class="stext">2. A company with 200 engineers across 25 teams, where a single shared deploy pipeline has become a major bottleneck.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>good fit</b>. At this scale, the organizational pain of coordinating one shared deploy across 25 teams is a concrete, specific reason microservices exist to solve.</div>
+        </div>
+
+        <div class="scenario" data-answer="good">
+          <div class="stext">3. A video platform where transcoding needs thousands of CPU-heavy machines, but the comments feature barely needs any compute at all.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>good fit</b>. Wildly different resource needs between features is one of the clearest, most concrete reasons to split a service out on its own.</div>
+        </div>
+
+        <div class="scenario" data-answer="bad">
+          <div class="stext">4. A small internal HR tool with 50 users total and one team maintaining it, currently working fine as a single application.</div>
+          <div class="choices"><button class="choice-btn" data-val="good">Good fit</button><button class="choice-btn" data-val="bad">Bad fit</button></div>
+          <div class="explain">This is a <b>bad fit</b>. There's no scaling pain, no deploy contention, and no team-coordination problem here — splitting it into services would only add operational overhead with no real benefit.</div>
+        </div>
+
+        <div class="score-bar"><span>SCORE</span><div class="score-track"><div class="score-fill" id="scoreFill1"></div></div><span id="scoreText1">0 / 4</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SUMMARY ================= -->
+    <section>
+      <div class="sec-eyebrow">10 · SUMMARY</div>
+      <div class="sec-title">Quick reference</div>
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Aspect</th><th style="color:var(--coral)">Monolith</th><th style="color:var(--cyan)">Microservices</th></tr>
+          <tr><td>Deployment</td><td>One unit, every time</td><td>Each service, independently</td></tr>
+          <tr><td>Communication</td><td>In-process function calls</td><td>Network calls (APIs / messages)</td></tr>
+          <tr><td>Scaling</td><td>Duplicate the whole app</td><td>Scale only the hot service</td></tr>
+          <tr><td>Data</td><td>One shared database</td><td>Database per service, eventually consistent</td></tr>
+          <tr><td>Failure mode</td><td>One crash can take everything down</td><td>Partial failure — one service can fail without full outage, but chains can still break</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>SYSTEM DESIGN LAB · ARCHITECTURAL PATTERNS 02 / 05 · Microservices · reduced-motion friendly</footer>
+
+<script>
+function colorOf(v){ const t=document.createElement('div'); t.style.color=v; document.body.appendChild(t); const c=getComputedStyle(t).color; t.remove(); return c; }
+
+/* ================= HERO STREET ================= */
+const svgStreet = document.getElementById('svgStreet');
+function renderStreet(){
+  const shops = [
+    {label:'ORDERS', color:'var(--cyan)'},
+    {label:'PAYMENTS', color:'var(--violet)'},
+    {label:'INVENTORY', color:'var(--amber)'},
+    {label:'NOTIFICATIONS', color:'var(--green)'},
+  ];
+  let svg='';
+  svg += `<line x1="30" y1="220" x2="870" y2="220" stroke="var(--border)" stroke-width="3"/>`;
+  const w=180, gap=25, startX=(900-(w*4+gap*3))/2;
+  shops.forEach((s,i)=>{
+    const x = startX+i*(w+gap);
+    svg += `<rect x="${x}" y="90" width="${w}" height="130" rx="10" fill="var(--panel-2)" stroke="${s.color}" stroke-width="2.5"/>`;
+    svg += `<rect x="${x+15}" y="110" width="${w-30}" height="34" rx="6" fill="${s.color}" opacity="0.18"/>`;
+    svg += `<text x="${x+w/2}" y="132" fill="${s.color}" font-size="12" text-anchor="middle" font-weight="700">${s.label}</text>`;
+    svg += `<text x="${x+w/2}" y="165" fill="var(--muted)" font-size="9.5" text-anchor="middle">own codebase</text>`;
+    svg += `<text x="${x+w/2}" y="182" fill="var(--muted)" font-size="9.5" text-anchor="middle">own database</text>`;
+    svg += `<rect x="${x+w/2-45}" y="196" width="90" height="16" rx="4" fill="${s.color}" opacity="0.3"/>`;
+    svg += `<text x="${x+w/2}" y="208" fill="${s.color}" font-size="8.5" text-anchor="middle" font-weight="700">STOREFRONT (API)</text>`;
+  });
+  svgStreet.innerHTML = svg;
+}
+renderStreet();
+
+/* ================= DEPLOY INDEPENDENTLY ================= */
+const svgDeploy = document.getElementById('svgDeploy');
+const svcNames = ['Orders','Payments','Inventory','Notifications'];
+function buildDeployBase(){
+  let svg='';
+  const w=180, gap=25, startX=(900-(w*4+gap*3))/2;
+  svcNames.forEach((s,i)=>{
+    const x = startX + i*(w+gap);
+    svg += `<rect class="svc-box" id="msvc${i}" x="${x}" y="60" width="${w}" height="80" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2.5" style="cursor:pointer;"/>`;
+    svg += `<text x="${x+w/2}" y="105" fill="var(--text)" font-size="12" text-anchor="middle" font-weight="700" style="pointer-events:none;">${s}</text>`;
+  });
+  svgDeploy.innerHTML = svg;
+  svcNames.forEach((s,i)=>{
+    document.getElementById('msvc'+i).addEventListener('click', ()=>deployOne(i));
+  });
+}
+buildDeployBase();
+function deployOne(i){
+  buildDeployBase();
+  document.getElementById('deployStatus').textContent = 'Deploying '+svcNames[i]+'...';
+  document.getElementById('deployStatus').style.color = colorOf('var(--amber)');
+  const el = document.getElementById('msvc'+i);
+  el.setAttribute('fill','rgba(180,83,9,0.2)');
+  el.setAttribute('stroke', colorOf('var(--amber)'));
+  setTimeout(()=>{
+    el.setAttribute('fill','rgba(21,128,61,0.18)');
+    el.setAttribute('stroke', colorOf('var(--green)'));
+    document.getElementById('deployStatus').textContent = svcNames[i]+' deployed';
+    document.getElementById('deployStatus').style.color = colorOf('var(--green)');
+    document.getElementById('deployCount').textContent = '1 / 1';
+    document.getElementById('deployCount').style.color = colorOf('var(--green)');
+    document.getElementById('deployNote').innerHTML = `<b>Result:</b> only ${svcNames[i]} rebuilt and redeployed. The other three services never noticed — no shared build, no shared risk.`;
+  }, 500);
+}
+document.getElementById('deployReset').addEventListener('click', ()=>{
+  buildDeployBase();
+  document.getElementById('deployCount').textContent='0 / 1';
+  document.getElementById('deployCount').style.color=colorOf('var(--muted)');
+  document.getElementById('deployStatus').textContent='Idle';
+  document.getElementById('deployStatus').style.color=colorOf('var(--muted)');
+  document.getElementById('deployNote').textContent='Click any service box above to deploy just that one service.';
+});
+
+/* ================= CALL CHAIN ================= */
+const svgChain = document.getElementById('svgChain');
+const chainNodes = [
+  {id:'c-gateway', x:40, label:'API Gateway', color:'var(--cyan)'},
+  {id:'c-orders', x:250, label:'Order Service', color:'var(--violet)'},
+  {id:'c-payment', x:460, label:'Payment Service', color:'var(--coral)'},
+  {id:'c-inventory', x:670, label:'Inventory Service', color:'var(--green)'},
+];
+let paymentDown = false;
+function buildChainBase(){
+  let svg='';
+  chainNodes.forEach((n,i)=>{
+    svg += `<rect class="svc-box" id="${n.id}" x="${n.x}" y="80" width="170" height="70" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="2.5"/>`;
+    svg += `<text x="${n.x+85}" y="120" fill="var(--text)" font-size="11" text-anchor="middle" font-weight="700">${n.label}</text>`;
+    if(i<chainNodes.length-1){
+      svg += `<line x1="${n.x+170}" y1="115" x2="${chainNodes[i+1].x}" y2="115" stroke="var(--border)" stroke-width="2"/>`;
+    }
+  });
+  if(paymentDown){
+    const el = document.getElementById('c-payment');
+  }
+  svg += `<text x="450" y="30" fill="var(--muted)" font-size="10.5" text-anchor="middle">each arrow below is a real network call — with real latency and a real chance of failure</text>`;
+  svgChain.innerHTML = svg;
+  if(paymentDown){
+    const pay = document.getElementById('c-payment');
+    pay.setAttribute('fill','rgba(200,30,58,0.2)');
+    pay.setAttribute('stroke', colorOf('var(--coral)'));
+  }
+}
+buildChainBase();
+document.getElementById('placeOrder').addEventListener('click', ()=>{
+  buildChainBase();
+  let delay=0, totalLatency=0;
+  const hopTimes = [60,90,70];
+  for(let i=0;i<chainNodes.length-1;i++){
+    const from = chainNodes[i], to = chainNodes[i+1];
+    if(to.id==='c-payment' && paymentDown){
+      setTimeout(()=>{
+        spawnChainPacket(from.x+170, 115, to.x, 115, colorOf('var(--coral)'), 400);
+        setTimeout(()=>{
+          document.getElementById('paymentStatus').textContent='DOWN — call failed';
+          document.getElementById('paymentStatus').style.color=colorOf('var(--coral)');
+          document.getElementById('chainNote').innerHTML = '<b>Cascading failure:</b> Order Service called Payment Service and got no response. The whole checkout flow fails, even though Inventory Service further down the chain is perfectly healthy — it never even got called.';
+        }, 450);
+      }, delay);
+      return;
+    }
+    setTimeout(()=>{
+      spawnChainPacket(from.x+170, 115, to.x, 115, colorOf('var(--cyan)'), 400);
+    }, delay);
+    totalLatency += hopTimes[i];
+    delay += 450;
+  }
+  setTimeout(()=>{
+    document.getElementById('chainLatency').textContent = totalLatency+'ms';
+    document.getElementById('chainNote').innerHTML = '<b>Result:</b> the order succeeded, but it took '+totalLatency+'ms of pure network time across 3 hops — compare that to the monolith\'s in-process call, which took under half a millisecond.';
+  }, delay+100);
+});
+function spawnChainPacket(x1,y1,x2,y2,color,dur){
+  const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('cx',x1); c.setAttribute('cy',y1); c.setAttribute('r','7');
+  c.setAttribute('fill',color); c.style.transition = `all ${dur}ms linear`;
+  svgChain.appendChild(c);
+  requestAnimationFrame(()=>{ c.setAttribute('cx',x2); c.setAttribute('cy',y2); });
+  setTimeout(()=>c.remove(), dur+60);
+}
+document.getElementById('toggleOutage').addEventListener('click', ()=>{
+  paymentDown = !paymentDown;
+  buildChainBase();
+  document.getElementById('paymentStatus').textContent = paymentDown ? 'DOWN' : 'Healthy';
+  document.getElementById('paymentStatus').style.color = paymentDown ? colorOf('var(--coral)') : colorOf('var(--green)');
+  document.getElementById('toggleOutage').textContent = paymentDown ? '✓ Bring Payment Service back up' : '⚡ Take Payment Service down';
+});
+document.getElementById('chainReset').addEventListener('click', ()=>{
+  paymentDown=false;
+  buildChainBase();
+  document.getElementById('chainLatency').textContent='—';
+  document.getElementById('paymentStatus').textContent='Healthy';
+  document.getElementById('paymentStatus').style.color=colorOf('var(--green)');
+  document.getElementById('toggleOutage').textContent='⚡ Take Payment Service down';
+  document.getElementById('chainNote').textContent='Compare this to the monolith\'s in-process request from Module 01 — that one took under half a millisecond with zero chance of a "service unavailable" error. This is the real price of independent deployability: latency and partial failure become part of every single request.';
+});
+
+/* ================= DATABASE PER SERVICE ================= */
+const svgDbSync = document.getElementById('svgDbSync');
+const dbServices = [
+  {label:'Orders DB', x:80, color:'var(--cyan)'},
+  {label:'Inventory DB', x:390, color:'var(--amber)'},
+  {label:'Notifications DB', x:700, color:'var(--green)'},
+];
+function buildDbBase(){
+  let svg='';
+  dbServices.forEach(d=>{
+    svg += `<ellipse class="db-box" id="db-${d.label.replace(/\\s/g,'')}" cx="${d.x+60}" cy="120" rx="90" ry="40" fill="var(--panel-2)" stroke="${d.color}" stroke-width="2.5"/>`;
+    svg += `<text x="${d.x+60}" y="125" fill="${d.color}" font-size="11.5" text-anchor="middle" font-weight="700">${d.label}</text>`;
+  });
+  svgDbSync.innerHTML = svg;
+}
+buildDbBase();
+document.getElementById('syncBtn').addEventListener('click', ()=>{
+  buildDbBase();
+  document.getElementById('consistencyModel').textContent = 'Syncing...';
+  document.getElementById('consistencyModel').style.color = colorOf('var(--amber)');
+  spawnChainDbPacket(140,120,450,120, colorOf('var(--cyan)'), 500, ()=>{
+    const el = document.getElementById('db-InventoryDB');
+    el.setAttribute('stroke-width','4');
+  });
+  setTimeout(()=>{
+    spawnChainDbPacket(140,120,760,120, colorOf('var(--cyan)'), 700, ()=>{
+      const el = document.getElementById('db-NotificationsDB');
+      el.setAttribute('stroke-width','4');
+      document.getElementById('consistencyModel').textContent = 'Now in sync';
+      document.getElementById('consistencyModel').style.color = colorOf('var(--green)');
+    });
+  }, 200);
+}, {passthrough:true});
+function spawnChainDbPacket(x1,y1,x2,y2,color,dur,onComplete){
+  const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('cx',x1); c.setAttribute('cy',y1); c.setAttribute('r','8');
+  c.setAttribute('fill',color); c.style.transition = `all ${dur}ms ease`;
+  svgDbSync.appendChild(c);
+  requestAnimationFrame(()=>{ c.setAttribute('cx',x2); c.setAttribute('cy',y2); });
+  setTimeout(()=>{ c.remove(); if(onComplete) onComplete(); }, dur+40);
+}
+document.getElementById('syncReset').addEventListener('click', ()=>{
+  buildDbBase();
+  document.getElementById('consistencyModel').textContent='Eventual';
+  document.getElementById('consistencyModel').style.color=colorOf('var(--amber)');
+});
+
+/* ================= INDEPENDENT SCALING ================= */
+const svgScaleMicro = document.getElementById('svgScaleMicro');
+let searchInstances = 1;
+function renderScaleMicro(){
+  let svg='';
+  // static services: Checkout, Payments, Profile (1 instance each)
+  const staticSvc = [
+    {label:'Checkout', x:600, color:'var(--violet)'},
+    {label:'Payments', x:600, color:'var(--coral)', y:150},
+  ];
+  svg += `<rect class="instance-box" x="600" y="30" width="150" height="60" rx="9" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2.5"/>`;
+  svg += `<text x="675" y="65" fill="var(--violet)" font-size="11" text-anchor="middle" font-weight="700">Checkout ×1</text>`;
+  svg += `<rect class="instance-box" x="600" y="105" width="150" height="60" rx="9" fill="var(--panel-2)" stroke="var(--coral)" stroke-width="2.5"/>`;
+  svg += `<text x="675" y="140" fill="var(--coral)" font-size="11" text-anchor="middle" font-weight="700">Payments ×1</text>`;
+
+  // search instances (dynamic)
+  const w=90, h=60, gap=14;
+  const totalW = searchInstances*w+(searchInstances-1)*gap;
+  const startX = 40;
+  svg += `<rect x="20" y="15" width="${totalW+40}" height="180" rx="12" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-dasharray="6 5"/>`;
+  svg += `<text x="${20+(totalW+40)/2}" y="10" fill="var(--cyan)" font-size="10.5" text-anchor="middle">SEARCH SERVICE — SCALED INDEPENDENTLY</text>`;
+  for(let i=0;i<searchInstances;i++){
+    const x = startX+i*(w+gap);
+    svg += `<rect class="instance-box" x="${x}" y="70" width="${w}" height="${h}" rx="8" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="2.5"/>`;
+    svg += `<text x="${x+w/2}" y="105" fill="var(--cyan)" font-size="10" text-anchor="middle" font-weight="700">Search ${i+1}</text>`;
+  }
+  svgScaleMicro.innerHTML = svg;
+  document.getElementById('searchInstances').textContent = searchInstances;
+}
+document.getElementById('addSearchInstance').addEventListener('click', ()=>{
+  if(searchInstances<6){ searchInstances++; renderScaleMicro(); }
+});
+document.getElementById('scaleMicroReset').addEventListener('click', ()=>{
+  searchInstances=1; renderScaleMicro();
+});
+renderScaleMicro();
+
+/* ================= ACTIVITY SCORING ================= */
+function wireActivity(containerId, fillId, textId){
+  const container = document.getElementById(containerId);
+  const scenarios = container.querySelectorAll('.scenario');
+  let correctCount = 0;
+  scenarios.forEach(sc=>{
+    const answer = sc.dataset.answer;
+    const btns = sc.querySelectorAll('.choice-btn');
+    const explain = sc.querySelector('.explain');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.classList.contains('disabled')) return;
+        btns.forEach(x=>x.classList.add('disabled'));
+        if(b.dataset.val === answer){ b.classList.add('correct'); correctCount++; }
+        else { b.classList.add('wrong'); btns.forEach(x=>{ if(x.dataset.val===answer) x.classList.add('correct'); }); }
+        explain.classList.add('show');
+        const pct = Math.round(100*correctCount/scenarios.length);
+        document.getElementById(fillId).style.width = pct+'%';
+        document.getElementById(textId).textContent = correctCount+' / '+scenarios.length;
+      });
+    });
+  });
+}
+wireActivity('act1','scoreFill1','scoreText1');
+</script>
+</body>
+</html>

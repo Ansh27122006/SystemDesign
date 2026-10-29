@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Module 01 — Performance vs Scalability</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#F7F9FC; --panel-2:#E7ECF3; --border:#5C6B84;
+    --text:#0F172A; --muted:#3F4C60;
+    --cyan:#0B7C82; --amber:#B45309; --coral:#C81E3A; --violet:#6D28D9; --green:#15803D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;}
+  ::selection{background:var(--cyan); color:#FFFFFF;}
+  body{
+    background-image:linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size:36px 36px;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding:0 24px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ===== HERO ===== */
+  header{padding:52px 0 34px; position:relative; overflow:hidden;}
+  .crumb{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:2.5px; color:var(--cyan); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .crumb .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(30px,5vw,50px); line-height:1.06; margin-top:14px; letter-spacing:-0.5px;}
+  h1 .hl{color:var(--cyan);}
+  .lead{color:var(--muted); font-size:16px; max-width:680px; margin-top:16px; line-height:1.6;}
+
+  /* hero kitchen animation */
+  .hero-anim{margin-top:34px; background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:24px; position:relative; box-shadow:0 4px 14px rgba(15,23,42,0.08);}
+  .hero-anim .cap{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .hero-anim .cap::before{content:'▸'; color:var(--cyan);}
+
+  main{padding:10px 0 100px;}
+  section{margin-top:56px;}
+  .sec-eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber);}
+  .sec-title{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:8px;}
+  .sec-desc{color:var(--muted); font-size:15px; margin-top:10px; max-width:720px; line-height:1.65;}
+
+  /* definitions */
+  .versus{display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:stretch; margin-top:26px;}
+  @media(max-width:760px){.versus{grid-template-columns:1fr;}}
+  .vcard{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:24px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .vcard.a{border-top:3px solid var(--cyan);} .vcard.b{border-top:3px solid var(--coral);}
+  .vcard h3{font-family:'Space Grotesk',sans-serif; font-size:20px; margin-bottom:10px;}
+  .vcard.a h3{color:var(--cyan);} .vcard.b h3{color:var(--coral);}
+  .vcard p{color:var(--muted); font-size:14px; line-height:1.65;}
+  .vcard .analogy{margin-top:14px; padding:12px 14px; background:var(--panel-2); border-radius:8px; font-size:13px; border-left:2px solid; }
+  .vcard.a .analogy{border-color:var(--cyan);} .vcard.b .analogy{border-color:var(--coral);}
+  .vcard .metrics-list{margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;}
+  .vcard .metrics-list span{font-family:'JetBrains Mono',monospace; font-size:11px; background:var(--panel-2); border:1px solid var(--border); padding:4px 9px; border-radius:6px; color:var(--text);}
+  .vs-mid{display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--muted); font-size:14px;}
+
+  /* panels (simulations) */
+  .panel{background:var(--panel); border:2px solid var(--border); border-radius:16px; padding:26px; margin-top:26px; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .panel-label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+  .panel-label::before{content:'▸'; color:var(--cyan);}
+  .panel-note{color:var(--muted); font-size:13px; margin-top:14px; line-height:1.6; border-top:1px solid var(--border); padding-top:14px;}
+  .panel-note b{color:var(--text);}
+
+  .controls{display:flex; gap:22px; flex-wrap:wrap; margin-top:20px; align-items:center;}
+  .ctrl{display:flex; flex-direction:column; gap:6px; min-width:190px;}
+  .ctrl label{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted);}
+  input[type=range]{-webkit-appearance:none; height:4px; background:var(--border); border-radius:2px; outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--cyan); cursor:pointer; box-shadow:0 0 0 4px rgba(79,216,196,0.15);}
+  button.btn{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:var(--bg); background:var(--cyan); border:none; border-radius:8px; padding:11px 18px; cursor:pointer; transition:transform .15s, opacity .15s;}
+  button.btn:hover{transform:translateY(-1px); opacity:.9;}
+  button.btn.ghost{background:transparent; color:var(--text); border:1px solid var(--border);}
+  button.btn.violet{background:var(--violet);}
+  button.btn.amber{background:var(--amber);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+  .toggle-row{display:flex; gap:8px; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:4px; width:fit-content;}
+  .toggle-row button{font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 16px; border-radius:6px; border:none; background:transparent; color:var(--muted); cursor:pointer;}
+  .toggle-row button.active{background:var(--cyan); color:var(--bg); font-weight:700;}
+
+  .readout{display:flex; gap:28px; margin-top:18px; flex-wrap:wrap;}
+  .readout .item{font-family:'JetBrains Mono',monospace;}
+  .readout .item .l{font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;}
+  .readout .item .v{font-size:22px; font-weight:700; margin-top:2px;}
+
+  svg text{font-family:'JetBrains Mono',monospace;}
+  .server-box, .chef, .packet, .queue-item{transition:all .35s ease;}
+
+  /* real-world examples */
+  .examples-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:26px;}
+  @media(max-width:760px){.examples-grid{grid-template-columns:1fr;}}
+  .ex-card{background:var(--panel); border:2px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .ex-card .ex-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;}
+  .ex-card h4{font-family:'Space Grotesk',sans-serif; font-size:16.5px; margin-bottom:6px;}
+  .ex-card p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+  .ex-card .tagrow{margin-top:12px; display:flex; gap:8px;}
+  .ex-card .tagrow span{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;}
+
+  /* quadrant */
+  .quadrant-wrap{display:grid; grid-template-columns:1fr 320px; gap:24px; margin-top:20px;}
+  @media(max-width:820px){.quadrant-wrap{grid-template-columns:1fr;}}
+  .quad-detail{background:var(--panel-2); border:2px solid var(--border); border-radius:12px; padding:18px; min-height:220px;}
+  .quad-detail h5{font-family:'Space Grotesk',sans-serif; font-size:15px; margin-bottom:8px;}
+  .quad-detail p{color:var(--muted); font-size:13px; line-height:1.6;}
+  .quad-detail .hint{color:var(--muted); font-size:12.5px; font-style:italic;}
+  .quad-dot{cursor:pointer;}
+
+  /* activity */
+  .activity{background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:2px dashed var(--border); border-radius:16px; padding:28px; margin-top:26px;}
+  .activity-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .activity-head .pill{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; background:var(--amber); color:#FFFFFF; padding:3px 9px; border-radius:20px; font-weight:700;}
+  .activity h4{font-family:'Space Grotesk',sans-serif; font-size:19px;}
+  .activity p.instr{color:var(--muted); font-size:14px; margin-top:6px; margin-bottom:20px;}
+  .scenario{border:2px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; background:var(--panel);}
+  .scenario .stext{font-size:14.5px; margin-bottom:12px; line-height:1.55;}
+  .choices{display:flex; gap:10px; flex-wrap:wrap;}
+  .choice-btn{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer; background:var(--panel-2); border:2px solid var(--border); color:var(--text); font-weight:600; transition:all .15s;}
+  .choice-btn:hover{border-color:var(--cyan);}
+  .choice-btn.correct{background:rgba(95,227,154,0.15); border-color:var(--green); color:var(--green);}
+  .choice-btn.wrong{background:rgba(242,102,122,0.15); border-color:var(--coral); color:var(--coral);}
+  .choice-btn.disabled{pointer-events:none;}
+  .explain{display:none; margin-top:12px; font-size:13.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; line-height:1.6;}
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+  .score-bar{display:flex; align-items:center; gap:14px; margin-top:22px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted);}
+  .score-track{flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--border);}
+  .score-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--green)); transition:width .4s;}
+
+  /* misconceptions */
+  .myth-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+  .myth{background:var(--panel); border:2px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 4px 14px rgba(15,23,42,0.06);}
+  .myth .x{color:var(--coral); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .myth .body b{display:block; font-size:14px; margin-bottom:4px;}
+  .myth .body p{color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  table.summary{width:100%; border-collapse:collapse; margin-top:20px;}
+  table.summary th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:10px 12px; border-bottom:1px solid var(--border);}
+  table.summary td{padding:12px; font-size:13.5px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+
+  footer{border-top:1px solid var(--border); padding:28px 0; text-align:center; color:var(--muted); font-size:12.5px; font-family:'JetBrains Mono',monospace; margin-top:60px;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="crumb"><span class="dot"></span>SYSTEM DESIGN LAB · MODULE 01</div>
+    <h1>Performance <span class="hl">vs</span> Scalability</h1>
+    <p class="lead">Two questions that sound similar but demand completely different answers: <b>"is it fast?"</b> and <b>"does it stay fast as more people show up?"</b> This module walks through both with live simulations, real production examples, and a graded activity.</p>
+
+    <div class="hero-anim">
+      <div class="cap">Opening analogy — the restaurant kitchen</div>
+      <svg id="svgKitchen" viewBox="0 0 900 220" width="100%" style="max-height:250px; display:block;"></svg>
+      <div class="controls">
+        <div class="toggle-row" id="kitchenToggle">
+          <button data-mode="slow" class="active">One slow chef</button>
+          <button data-mode="fast">One fast chef</button>
+          <button data-mode="team">Whole kitchen team</button>
+        </div>
+      </div>
+      <p class="panel-note" id="kitchenNote"><b>One slow chef:</b> a single chef, poorly organized, takes 6 minutes per dish. This is a <b>performance</b> problem — slow at any order volume, even one table.</p>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= DEFINITIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">01 · CORE DEFINITIONS</div>
+      <div class="sec-title">What each term actually measures</div>
+      <p class="sec-desc">These aren't synonyms. Performance is about <b>one unit of work, right now</b>. Scalability is about <b>the system's behavior as demand grows</b>. A system can be fast and unscalable, or slow and perfectly scalable.</p>
+
+      <div class="versus">
+        <div class="vcard a">
+          <h3>Performance</h3>
+          <p>How quickly a system completes a unit of work under a <b>given, fixed</b> load. It's a snapshot measurement — response time, throughput at a point in time, CPU/memory efficiency.</p>
+          <div class="analogy">🍽️ <b>Analogy:</b> how fast one chef plates one dish, with the kitchen at normal capacity.</div>
+          <div class="metrics-list">
+            <span>response time</span><span>CPU usage</span><span>query time</span><span>memory footprint</span>
+          </div>
+        </div>
+        <div class="vs-mid">VS</div>
+        <div class="vcard b">
+          <h3>Scalability</h3>
+          <p>The system's <b>capacity to maintain</b> acceptable performance as load grows, typically by adding resources — more servers, more chefs, more database shards.</p>
+          <div class="analogy">🍽️ <b>Analogy:</b> can the kitchen still serve everyone on time when 500 people walk in instead of 5?</div>
+          <div class="metrics-list">
+            <span>horizontal scaling</span><span>vertical scaling</span><span>load balancing</span><span>elasticity</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SIM 1: LOAD & QUEUE ================= -->
+    <section>
+      <div class="sec-eyebrow">02 · ANIMATION</div>
+      <div class="sec-title">Watch performance degrade under load</div>
+      <p class="sec-desc">Drag the load slider up. Requests arrive faster than the single server can finish them, so they queue. Response time is no longer just "processing time" — it's processing time <b>plus time spent waiting in line</b>.</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — request queue on a single server</div>
+        <svg id="svgQueue" viewBox="0 0 900 220" width="100%" style="max-height:250px;"></svg>
+        <div class="controls">
+          <div class="ctrl">
+            <label>INCOMING REQUESTS — <span id="qLoadVal">10</span> req/s</label>
+            <input type="range" id="qLoadSlider" min="5" max="60" value="10">
+          </div>
+          <button class="btn ghost" id="qReset">Reset queue</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Server capacity</div><div class="v" id="qCap" style="color:var(--cyan)">15 req/s</div></div>
+          <div class="item"><div class="l">Queue length</div><div class="v" id="qLen" style="color:var(--amber)">0</div></div>
+          <div class="item"><div class="l">Wait time added</div><div class="v" id="qWait" style="color:var(--coral)">0ms</div></div>
+        </div>
+        <p class="panel-note">Notice: the server's own processing speed <b>never changes</b> in this animation — that's fixed performance. What changes is the queue. This is why a "fast" endpoint can still feel slow to users under heavy traffic: the code isn't slower, there's just a line forming in front of it.</p>
+      </div>
+    </section>
+
+    <!-- ================= SIM 2: VERTICAL VS HORIZONTAL SCALING ================= -->
+    <section>
+      <div class="sec-eyebrow">03 · ANIMATION</div>
+      <div class="sec-title">Two ways to scale — vertical vs horizontal</div>
+      <p class="sec-desc">When the queue above gets too long, you have two options: make the one server bigger (vertical scaling), or add more servers and split the traffic (horizontal scaling).</p>
+
+      <div class="panel">
+        <div class="panel-label">Simulation — pick a scaling strategy</div>
+        <div class="toggle-row" id="scaleToggle">
+          <button data-mode="vertical" class="active">Vertical (scale up)</button>
+          <button data-mode="horizontal">Horizontal (scale out)</button>
+        </div>
+        <svg id="svgScale" viewBox="0 0 900 240" width="100%" style="max-height:270px; margin-top:16px;"></svg>
+        <div class="controls">
+          <button class="btn" id="scaleStepBtn">Apply next scaling step</button>
+          <button class="btn ghost" id="scaleReset">Reset</button>
+        </div>
+        <div class="readout">
+          <div class="item"><div class="l">Strategy</div><div class="v" id="sStrategy" style="color:var(--cyan)">Vertical</div></div>
+          <div class="item"><div class="l">Capacity</div><div class="v" id="sCap" style="color:var(--green)">15 req/s</div></div>
+          <div class="item"><div class="l">Ceiling</div><div class="v" id="sCeiling" style="color:var(--coral)">Hardware limit</div></div>
+        </div>
+        <p class="panel-note" id="scaleNote"><b>Vertical scaling</b> upgrades the same machine — more RAM, faster CPU. Simple, no code changes, but it hits a hard ceiling (there's a biggest machine money can buy) and that machine is a single point of failure.</p>
+      </div>
+    </section>
+
+    <!-- ================= QUADRANT ================= -->
+    <section>
+      <div class="sec-eyebrow">04 · INTERACTIVE MAP</div>
+      <div class="sec-title">A system can sit anywhere on this map</div>
+      <p class="sec-desc">Performance and scalability are independent axes. Click each dot to see a real example of a system that lives in that quadrant.</p>
+
+      <div class="quadrant-wrap">
+        <svg id="svgQuad" viewBox="0 0 520 400" width="100%" style="max-height:420px;"></svg>
+        <div class="quad-detail" id="quadDetail">
+          <h5>Click a dot</h5>
+          <p class="hint">Each point on this map is a real kind of system. Explore all four corners.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= REAL WORLD EXAMPLES ================= -->
+    <section>
+      <div class="sec-eyebrow">05 · REAL-WORLD EXAMPLES</div>
+      <div class="sec-title">Where teams actually hit these problems</div>
+      <div class="examples-grid">
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(79,216,196,0.15); color:var(--cyan);">🎬</div>
+          <h4>Netflix — horizontal scaling for traffic spikes</h4>
+          <p>Netflix runs thousands of microservice instances behind load balancers on AWS. During peak evening hours or a big release, it automatically spins up more instances rather than making any single server bigger — pure horizontal scalability.</p>
+          <div class="tagrow"><span style="background:rgba(79,216,196,0.15); color:var(--cyan);">SCALABILITY WIN</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(242,102,122,0.15); color:var(--coral);">🐌</div>
+          <h4>The classic "N+1 query" bug</h4>
+          <p>A page that loops through 50 items and fires a separate database query for each one will be slow even for a single visitor with a warm cache. Adding more servers doesn't help — every server independently runs the same 50 slow queries. Pure performance bug.</p>
+          <div class="tagrow"><span style="background:rgba(242,102,122,0.15); color:var(--coral);">PERFORMANCE BUG</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(245,185,66,0.15); color:var(--amber);">🏦</div>
+          <h4>Legacy banking mainframes</h4>
+          <p>Many core banking systems are extremely fast per-transaction (finely tuned COBOL running on dedicated hardware) but were never designed to scale horizontally, so banks scale them vertically — buying the largest mainframe available, which gets very expensive very fast.</p>
+          <div class="tagrow"><span style="background:rgba(245,185,66,0.15); color:var(--amber);">FAST, HARD TO SCALE</span></div>
+        </div>
+        <div class="ex-card">
+          <div class="ex-icon" style="background:rgba(155,140,250,0.15); color:var(--violet);">🛒</div>
+          <h4>E-commerce during flash sales</h4>
+          <p>A store's checkout might be plenty fast on a normal day, but during a flash sale, traffic jumps 50x in minutes. Teams pre-scale (add servers ahead of time), add caching, and queue-based order processing so the system stays responsive under the spike.</p>
+          <div class="tagrow"><span style="background:rgba(155,140,250,0.15); color:var(--violet);">SCALABILITY PLANNING</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MISCONCEPTIONS ================= -->
+    <section>
+      <div class="sec-eyebrow">06 · COMMON CONFUSIONS</div>
+      <div class="sec-title">What students usually get wrong</div>
+      <div class="myth-list">
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"If it's fast, it's scalable."</b><p>False. A system can be blazing fast for one user and fall over completely at 1,000 concurrent users if it wasn't designed to distribute load — e.g. it holds everything in memory on one machine.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Scaling out always fixes slowness."</b><p>False. If the root cause is an inefficient algorithm or a slow query, adding servers just gives you more machines running the same slow code — the per-request time stays exactly the same.</p></div>
+        </div>
+        <div class="myth">
+          <div class="x">✕</div>
+          <div class="body"><b>"Scalability is only about handling more users."</b><p>Not quite — it also covers handling more data, more requests per user, or more geographic regions, while keeping performance and cost reasonable.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section>
+      <div class="sec-eyebrow">07 · IN-CLASS ACTIVITY</div>
+      <div class="sec-title">Classify the problem</div>
+      <div class="activity" id="act1">
+        <div class="activity-head"><span class="pill">GRADED</span></div>
+        <h4>Performance or Scalability?</h4>
+        <p class="instr">Read each scenario and click the correct classification. Discuss with a neighbor before answering if you're unsure.</p>
+
+        <div class="scenario" data-answer="performance">
+          <div class="stext">1. A single checkout API takes 3 seconds to respond even when only one user is on the site.</div>
+          <div class="choices"><button class="choice-btn" data-val="performance">Performance</button><button class="choice-btn" data-val="scalability">Scalability</button></div>
+          <div class="explain">This is <b>performance</b> — slow even under trivial load. Adding servers won't fix a query or algorithm that's inherently slow; you need to optimize the code itself.</div>
+        </div>
+
+        <div class="scenario" data-answer="scalability">
+          <div class="stext">2. The app responds in 80ms with 100 users, but crashes or times out once traffic hits 50,000 concurrent users.</div>
+          <div class="choices"><button class="choice-btn" data-val="performance">Performance</button><button class="choice-btn" data-val="scalability">Scalability</button></div>
+          <div class="explain">This is <b>scalability</b> — performance is fine at low load, the system just can't grow to handle more of it. Solve with horizontal scaling, load balancing, or caching.</div>
+        </div>
+
+        <div class="scenario" data-answer="performance">
+          <div class="stext">3. A report job reads an entire 10GB file into memory instead of streaming it, so it's slow for every single user who runs it, regardless of how many other users are active.</div>
+          <div class="choices"><button class="choice-btn" data-val="performance">Performance</button><button class="choice-btn" data-val="scalability">Scalability</button></div>
+          <div class="explain">This is <b>performance</b> — an inefficient implementation. More servers would just mean more machines doing the same slow thing.</div>
+        </div>
+
+        <div class="scenario" data-answer="scalability">
+          <div class="stext">4. A startup's database handles their first 1,000 customers fine, but as they grow to 2 million customers, writes start failing because a single database instance can't keep up.</div>
+          <div class="choices"><button class="choice-btn" data-val="performance">Performance</button><button class="choice-btn" data-val="scalability">Scalability</button></div>
+          <div class="explain">This is <b>scalability</b> — the database architecture needs to grow (sharding, replicas, or a distributed database) to handle the increased data and request volume.</div>
+        </div>
+
+        <div class="score-bar"><span>SCORE</span><div class="score-track"><div class="score-fill" id="scoreFill1"></div></div><span id="scoreText1">0 / 4</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SUMMARY ================= -->
+    <section>
+      <div class="sec-eyebrow">08 · SUMMARY</div>
+      <div class="sec-title">Quick reference</div>
+      <div class="panel">
+        <table class="summary">
+          <tr><th>Aspect</th><th style="color:var(--cyan)">Performance</th><th style="color:var(--coral)">Scalability</th></tr>
+          <tr><td>Question it answers</td><td>How fast is it right now?</td><td>Does it stay fast as load grows?</td></tr>
+          <tr><td>Measured with</td><td>Response time, CPU/memory usage</td><td>Behavior across increasing load levels</td></tr>
+          <tr><td>Typical fix</td><td>Optimize code, queries, algorithms, caching</td><td>Add servers, load balance, shard data, go distributed</td></tr>
+          <tr><td>Failure looks like</td><td>Slow even under light, normal use</td><td>Fine at first, then falls over as usage grows</td></tr>
+          <tr><td>Analogy</td><td>How fast one chef plates one dish</td><td>Can the kitchen serve 500 people, not just 5</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>SYSTEM DESIGN LAB · MODULE 01 / 03 · Performance vs Scalability · reduced-motion friendly</footer>
+
+<script>
+/* ================= HERO KITCHEN ANIMATION ================= */
+const svgKitchen = document.getElementById('svgKitchen');
+const kitchenNote = document.getElementById('kitchenNote');
+const kitchenNotes = {
+  slow: '<b>One slow chef:</b> a single chef, poorly organized, takes 6 minutes per dish. This is a <b>performance</b> problem — slow at any order volume, even one table.',
+  fast: '<b>One fast chef:</b> the same chef, but well-trained and organized, now takes 90 seconds per dish. Performance improved — but there is still only one chef, so a full restaurant will still overwhelm them.',
+  team: '<b>Whole kitchen team:</b> multiple chefs work in parallel stations. Each dish still takes about the same time to cook, but far more dishes get started at once. This is <b>scalability</b> — the system grows its capacity to match demand.'
+};
+let kitchenMode = 'slow';
+
+function renderKitchen(){
+  const chefCounts = {slow:1, fast:1, team:4};
+  const speedMs = {slow:2600, fast:1000, team:1000};
+  const n = chefCounts[kitchenMode];
+  let svg = '';
+  // order queue on the left
+  svg += `<text x="30" y="24" fill="var(--muted)" font-size="11">ORDERS</text>`;
+  for(let i=0;i<5;i++){
+    svg += `<rect x="30" y="${36+i*22}" width="26" height="16" rx="3" fill="var(--panel-2)" stroke="var(--border)"/>`;
+  }
+  // chef stations
+  const stationW = 130, gap=20;
+  const totalW = n*stationW + (n-1)*gap;
+  const startX = 200;
+  for(let i=0;i<n;i++){
+    const x = startX + i*(stationW+gap);
+    const color = kitchenMode==='slow' ? 'var(--coral)' : kitchenMode==='fast' ? 'var(--amber)' : 'var(--cyan)';
+    svg += `<rect x="${x}" y="40" width="${stationW}" height="120" rx="10" fill="var(--panel-2)" stroke="${color}" stroke-width="2"/>`;
+    svg += `<circle class="chef" cx="${x+stationW/2}" cy="80" r="18" fill="${color}" opacity="1"/>`;
+    svg += `<text x="${x+stationW/2}" y="85" fill="#FFFFFF" font-size="14" text-anchor="middle" font-weight="700">👨‍🍳</text>`;
+    svg += `<rect id="plate${i}" class="chef" x="${x+stationW/2-14}" y="120" width="28" height="10" rx="3" fill="var(--green)" opacity="0.9"/>`;
+    svg += `<text x="${x+stationW/2}" y="178" fill="var(--muted)" font-size="10" text-anchor="middle">STATION ${i+1}</text>`;
+  }
+  svg += `<text x="450" y="210" fill="var(--muted)" font-size="11" text-anchor="middle">plates animate faster/slower based on chef speed · more stations = more parallel dishes</text>`;
+  svgKitchen.innerHTML = svg;
+  kitchenNote.innerHTML = kitchenNotes[kitchenMode];
+
+  // animate plates: pulse scale
+  for(let i=0;i<n;i++){
+    const plate = document.getElementById('plate'+i);
+    if(plate){
+      plate.style.transitionDuration = speedMs[kitchenMode]+'ms';
+      animatePlate(plate, speedMs[kitchenMode]);
+    }
+  }
+}
+function animatePlate(el, dur){
+  let up = true;
+  clearInterval(el._t);
+  el._t = setInterval(()=>{
+    el.setAttribute('opacity', up ? '0.3' : '0.9');
+    up = !up;
+  }, dur/2);
+}
+document.getElementById('kitchenToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#kitchenToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  kitchenMode = btn.dataset.mode;
+  renderKitchen();
+});
+renderKitchen();
+
+/* ================= QUEUE SIMULATION ================= */
+const svgQueue = document.getElementById('svgQueue');
+const qLoadSlider = document.getElementById('qLoadSlider');
+const CAPACITY = 15;
+let queueLen = 0;
+let queueTimer = null;
+
+function renderQueueSVG(){
+  const load = parseInt(qLoadSlider.value);
+  let svg = '';
+  svg += `<circle cx="60" cy="110" r="24" fill="none" stroke="var(--muted)" stroke-width="2"/>`;
+  svg += `<text x="60" y="115" fill="var(--muted)" font-size="9" text-anchor="middle">USERS</text>`;
+  svg += `<line x1="86" y1="110" x2="140" y2="110" stroke="var(--border)" stroke-width="2"/>`;
+  // queue box
+  svg += `<rect x="140" y="60" width="420" height="100" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>`;
+  svg += `<text x="150" y="52" fill="var(--muted)" font-size="10">QUEUE</text>`;
+  const shown = Math.min(queueLen, 22);
+  for(let i=0;i<shown;i++){
+    const col = i % 22;
+    const x = 150 + col*18;
+    const color = queueLen>25 ? 'var(--coral)' : queueLen>10 ? 'var(--amber)' : 'var(--cyan)';
+    svg += `<rect class="queue-item" x="${x}" y="100" width="12" height="12" rx="2" fill="${color}"/>`;
+  }
+  svg += `<line x1="560" y1="110" x2="620" y2="110" stroke="var(--border)" stroke-width="2"/>`;
+  // server
+  svg += `<rect x="620" y="70" width="120" height="80" rx="10" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="2"/>`;
+  svg += `<text x="680" y="115" fill="var(--cyan)" font-size="11" text-anchor="middle">SERVER</text>`;
+  svg += `<text x="680" y="132" fill="var(--muted)" font-size="9" text-anchor="middle">fixed: ${CAPACITY} req/s</text>`;
+  svg += `<line x1="740" y1="110" x2="800" y2="110" stroke="var(--border)" stroke-width="2"/>`;
+  svg += `<text x="820" y="115" fill="var(--muted)" font-size="9">DONE</text>`;
+  svg += `<text x="450" y="195" fill="var(--muted)" font-size="11" text-anchor="middle">boxes = requests waiting in line · color shifts as the queue grows</text>`;
+  svgQueue.innerHTML = svg;
+}
+
+function tickQueue(){
+  const load = parseInt(qLoadSlider.value);
+  document.getElementById('qLoadVal').textContent = load;
+  const net = load - CAPACITY;
+  queueLen = Math.max(0, queueLen + net*0.4);
+  const waitMs = Math.round((queueLen / CAPACITY) * 1000);
+  document.getElementById('qLen').textContent = Math.round(queueLen);
+  document.getElementById('qWait').textContent = waitMs+'ms';
+  document.getElementById('qWait').style.color = waitMs>800 ? 'var(--coral)' : waitMs>200 ? 'var(--amber)' : 'var(--green)';
+  renderQueueSVG();
+}
+qLoadSlider.addEventListener('input', renderQueueSVG);
+document.getElementById('qReset').addEventListener('click', ()=>{ queueLen=0; qLoadSlider.value=10; tickQueue(); });
+queueTimer = setInterval(tickQueue, 350);
+renderQueueSVG();
+
+/* ================= VERTICAL VS HORIZONTAL SCALING ================= */
+const svgScale = document.getElementById('svgScale');
+let scaleMode = 'vertical';
+let vertStep = 0; // 0..3
+let horizStep = 1; // number of servers, starts at 1
+const vertCaps = [15, 30, 55, 90];
+const vertLabels = ['Base machine','+RAM & CPU','Bigger instance','Largest instance (ceiling)'];
+
+function renderScale(){
+  let svg = '';
+  if(scaleMode==='vertical'){
+    const cap = vertCaps[vertStep];
+    const size = 60 + vertStep*22;
+    const x = 450 - size/2, y = 150 - size;
+    const color = vertStep===3 ? 'var(--coral)' : 'var(--cyan)';
+    svg += `<line x1="450" y1="160" x2="450" y2="${170}" stroke="none"/>`;
+    svg += `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="12" fill="var(--panel-2)" stroke="${color}" stroke-width="3"/>`;
+    svg += `<text x="450" y="${y+size/2-4}" fill="${color}" font-size="13" text-anchor="middle" font-weight="700">SERVER</text>`;
+    svg += `<text x="450" y="${y+size/2+14}" fill="var(--muted)" font-size="10" text-anchor="middle">${cap} req/s</text>`;
+    svg += `<text x="450" y="200" fill="var(--muted)" font-size="11" text-anchor="middle">${vertLabels[vertStep]}</text>`;
+    if(vertStep===3){
+      svg += `<text x="450" y="222" fill="var(--coral)" font-size="10.5" text-anchor="middle">⚠ hit the hardware ceiling — nowhere bigger to go</text>`;
+    }
+    document.getElementById('sCap').textContent = cap+' req/s';
+    document.getElementById('sCeiling').textContent = vertStep===3 ? 'REACHED' : 'Hardware limit';
+    document.getElementById('sCeiling').style.color = vertStep===3 ? 'var(--coral)' : 'var(--muted)';
+  } else {
+    const n = horizStep;
+    const cap = n*15;
+    const boxW=90, gap=18;
+    const totalW = n*boxW+(n-1)*gap;
+    const startX=(900-totalW)/2;
+    // load balancer
+    svg += `<rect x="${450-55}" y="30" width="110" height="40" rx="8" fill="var(--panel-2)" stroke="var(--violet)" stroke-width="2"/>`;
+    svg += `<text x="450" y="55" fill="var(--violet)" font-size="10.5" text-anchor="middle">LOAD BALANCER</text>`;
+    for(let i=0;i<n;i++){
+      const x = startX+i*(boxW+gap);
+      svg += `<line x1="450" y1="70" x2="${x+boxW/2}" y2="110" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+      svg += `<rect class="server-box" x="${x}" y="110" width="${boxW}" height="70" rx="9" fill="var(--panel-2)" stroke="var(--cyan)" stroke-width="2"/>`;
+      svg += `<text x="${x+boxW/2}" y="148" fill="var(--cyan)" font-size="11" text-anchor="middle" font-weight="700">SRV ${i+1}</text>`;
+      svg += `<text x="${x+boxW/2}" y="164" fill="var(--muted)" font-size="9" text-anchor="middle">15 req/s</text>`;
+    }
+    svg += `<text x="450" y="205" fill="var(--muted)" font-size="11" text-anchor="middle">${n} identical servers behind a load balancer — add more anytime, near-linear growth</text>`;
+    document.getElementById('sCap').textContent = cap+' req/s';
+    document.getElementById('sCeiling').textContent = n>=6 ? 'Very high' : 'Add more servers';
+    document.getElementById('sCeiling').style.color = 'var(--green)';
+  }
+  svgScale.innerHTML = svg;
+  document.getElementById('sStrategy').textContent = scaleMode==='vertical' ? 'Vertical' : 'Horizontal';
+}
+
+document.getElementById('scaleToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#scaleToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  scaleMode = btn.dataset.mode;
+  document.getElementById('scaleNote').innerHTML = scaleMode==='vertical'
+    ? '<b>Vertical scaling</b> upgrades the same machine — more RAM, faster CPU. Simple, no code changes, but it hits a hard ceiling (there\'s a biggest machine money can buy) and that machine is a single point of failure.'
+    : '<b>Horizontal scaling</b> adds more machines and spreads load across them with a load balancer. Needs the app to be designed for it (stateless, shared session storage), but growth is far less limited and there\'s no single point of failure.';
+  renderScale();
+});
+document.getElementById('scaleStepBtn').addEventListener('click', ()=>{
+  if(scaleMode==='vertical'){ vertStep = Math.min(3, vertStep+1); }
+  else { horizStep = Math.min(6, horizStep+1); }
+  renderScale();
+});
+document.getElementById('scaleReset').addEventListener('click', ()=>{
+  vertStep=0; horizStep=1; renderScale();
+});
+renderScale();
+
+/* ================= QUADRANT ================= */
+const svgQuad = document.getElementById('svgQuad');
+const quadPoints = [
+  {x:140,y:100,label:'Fast + Scalable', color:'var(--green)', title:'Fast AND Scalable', desc:'Well-architected distributed systems like Netflix\'s streaming backend or Google Search: quick responses per request, and capacity grows smoothly by adding more nodes.'},
+  {x:380,y:100,label:'Fast, hard to scale', color:'var(--amber)', title:'Fast, but hard to scale', desc:'Legacy banking mainframes or single-machine in-memory databases: blazing fast per transaction, but scale vertically only and hit a hardware/cost ceiling quickly.'},
+  {x:140,y:300,label:'Slow, but scalable', color:'var(--cyan)', title:'Slow, but scalable', desc:'Big-data batch pipelines (e.g. nightly Hadoop/Spark jobs): each job takes hours, but you can throw thousands of machines at it and it comfortably handles petabytes.'},
+  {x:380,y:300,label:'Slow + unscalable', color:'var(--coral)', title:'Slow AND unscalable', desc:'A poorly written prototype: N+1 queries, no caching, everything on one small server. Slow for one user, and falls over completely under any real load. Needs a rewrite, not just more servers.'},
+];
+function renderQuad(){
+  let svg='';
+  svg += `<line x1="60" y1="200" x2="460" y2="200" stroke="var(--border)" stroke-width="1.5"/>`;
+  svg += `<line x1="260" y1="20" x2="260" y2="380" stroke="var(--border)" stroke-width="1.5"/>`;
+  svg += `<text x="260" y="14" fill="var(--muted)" font-size="11" text-anchor="middle">HIGH PERFORMANCE</text>`;
+  svg += `<text x="260" y="396" fill="var(--muted)" font-size="11" text-anchor="middle">LOW PERFORMANCE</text>`;
+  svg += `<text x="15" y="205" fill="var(--muted)" font-size="11" transform="rotate(-90 15 205)" text-anchor="middle">HIGH SCALABILITY</text>`;
+  svg += `<text x="500" y="205" fill="var(--muted)" font-size="11" transform="rotate(-90 500 205)" text-anchor="middle">LOW SCALABILITY</text>`;
+  quadPoints.forEach((p,i)=>{
+    svg += `<circle class="quad-dot" data-idx="${i}" cx="${p.x}" cy="${p.y}" r="16" fill="${p.color}" opacity="1" stroke="#FFFFFF" stroke-width="2.5"/>`;
+    svg += `<text x="${p.x}" y="${p.y+34}" fill="var(--muted)" font-size="10.5" text-anchor="middle">${p.label}</text>`;
+  });
+  svgQuad.innerHTML = svg;
+  svgQuad.querySelectorAll('.quad-dot').forEach(dot=>{
+    dot.addEventListener('click', ()=>{
+      const p = quadPoints[dot.dataset.idx];
+      document.getElementById('quadDetail').innerHTML = `<h5 style="color:${p.color}">${p.title}</h5><p>${p.desc}</p>`;
+    });
+  });
+}
+renderQuad();
+
+/* ================= ACTIVITY SCORING ================= */
+function wireActivity(containerId, fillId, textId){
+  const container = document.getElementById(containerId);
+  const scenarios = container.querySelectorAll('.scenario');
+  let correctCount = 0;
+  scenarios.forEach(sc=>{
+    const answer = sc.dataset.answer;
+    const btns = sc.querySelectorAll('.choice-btn');
+    const explain = sc.querySelector('.explain');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.classList.contains('disabled')) return;
+        btns.forEach(x=>x.classList.add('disabled'));
+        if(b.dataset.val === answer){ b.classList.add('correct'); correctCount++; }
+        else { b.classList.add('wrong'); btns.forEach(x=>{ if(x.dataset.val===answer) x.classList.add('correct'); }); }
+        explain.classList.add('show');
+        const pct = Math.round(100*correctCount/scenarios.length);
+        document.getElementById(fillId).style.width = pct+'%';
+        document.getElementById(textId).textContent = correctCount+' / '+scenarios.length;
+      });
+    });
+  });
+}
+wireActivity('act1','scoreFill1','scoreText1');
+</script>
+</body>
+</html>

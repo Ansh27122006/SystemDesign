@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Availability — System Design Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1a;
+    --panel:#121a2c;
+    --panel-light:#182234;
+    --line:#243050;
+    --text:#e8edf5;
+    --muted:#8b98b3;
+    --up:#35d399;
+    --up-dim: #1d5c46;
+    --down:#ff5470;
+    --down-dim:#6b2532;
+    --warn:#ffb020;
+    --accent:#4c8dff;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  ::selection{background:var(--accent);color:#fff;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px 120px;}
+
+  /* HEADER */
+  header{padding:64px 24px 40px;text-align:center;position:relative;overflow:hidden;}
+  header::before{
+    content:"";position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(76,141,255,0.10), transparent 45%),
+      radial-gradient(circle at 80% 0%, rgba(53,211,153,0.10), transparent 45%);
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;
+    color:var(--up);text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;
+    background:rgba(53,211,153,0.08);border:1px solid var(--up-dim);padding:6px 14px;border-radius:999px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 8px var(--up);animation:blink 1.6s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+  h1.title{font-size:clamp(42px,8vw,76px);margin:20px 0 8px;font-weight:700;letter-spacing:-0.02em;}
+  header p.sub{color:var(--muted);font-size:18px;max-width:560px;margin:0 auto;line-height:1.5;}
+
+  /* SECTION SHELL */
+  section{margin-top:72px;}
+  .section-head{margin-bottom:28px;}
+  .section-head .tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);letter-spacing:.12em;text-transform:uppercase;}
+  .section-head h2{font-family:'Space Grotesk',sans-serif;font-size:30px;margin:6px 0 10px;}
+  .section-head p{color:var(--muted);font-size:16px;line-height:1.6;max-width:680px;}
+
+  .panel{
+    background:linear-gradient(180deg, var(--panel), var(--panel-light));
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:28px;
+  }
+
+  /* HERO STATUS BOARD */
+  .board{display:grid;grid-template-columns:1.1fr .9fr;gap:24px;align-items:center;}
+  @media(max-width:760px){.board{grid-template-columns:1fr;}}
+  .server-scene{position:relative;height:220px;display:flex;align-items:center;justify-content:center;}
+  .user-icon, .server-icon{
+    width:88px;height:88px;border-radius:20px;display:flex;align-items:center;justify-content:center;
+    background:var(--panel-light);border:1px solid var(--line);font-size:34px;position:relative;z-index:2;
+  }
+  .server-icon.up{border-color:var(--up-dim);box-shadow:0 0 0 0 rgba(53,211,153,.5);}
+  .server-icon.down{border-color:var(--down-dim);}
+  .link-line{position:absolute;top:50%;left:108px;right:108px;height:2px;background:var(--line);z-index:1;}
+  .req-dot{
+    position:absolute;top:calc(50% - 5px);width:10px;height:10px;border-radius:50%;
+    background:var(--up);box-shadow:0 0 8px var(--up);z-index:3;transition:left .8s ease;
+  }
+  .req-dot.fail{background:var(--down);box-shadow:0 0 8px var(--down);}
+  .pulse-ring{
+    position:absolute;width:88px;height:88px;border-radius:20px;border:2px solid var(--up);
+    opacity:0;
+  }
+  .pulse-ring.animate{animation:pulseOut 1.4s ease-out infinite;}
+  @keyframes pulseOut{0%{opacity:.6;transform:scale(1);}100%{opacity:0;transform:scale(1.5);}}
+  .shake{animation:shakeAnim .4s;}
+  @keyframes shakeAnim{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+
+  .stat-col{display:flex;flex-direction:column;gap:14px;}
+  .stat-box{background:var(--panel-light);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .stat-box .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  .stat-box .value{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;margin-top:4px;}
+  .value.up-color{color:var(--up);}
+  .value.down-color{color:var(--down);}
+
+  .btn-row{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+  button{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:14px;padding:10px 18px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel-light);color:var(--text);cursor:pointer;
+    transition:all .15s ease;
+  }
+  button:hover{border-color:var(--accent);transform:translateY(-1px);}
+  button.danger:hover{border-color:var(--down);}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.primary:hover{filter:brightness(1.1);}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+  .console{
+    margin-top:18px;background:#060a12;border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;height:110px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12.5px;
+    color:#8fe6bd;
+  }
+  .console div{margin-bottom:4px;opacity:.9;}
+  .console .err{color:var(--down);}
+  .console .warn{color:var(--warn);}
+
+  /* CAUSE CARDS */
+  .cause-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}
+  .cause-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;transition:transform .15s ease, border-color .15s ease;}
+  .cause-card:hover{transform:translateY(-3px);border-color:var(--accent);}
+  .cause-card .icon{font-size:26px;}
+  .cause-card h3{font-size:15px;margin:10px 0 4px;font-family:'Space Grotesk',sans-serif;}
+  .cause-card p{font-size:13px;color:var(--muted);line-height:1.5;margin:0;}
+
+  /* REDUNDANCY DEMO */
+  .redundancy-scene{position:relative;padding:20px 0 10px;}
+  .lb-row{display:flex;justify-content:center;margin-bottom:50px;position:relative;}
+  .lb-box{
+    background:var(--panel-light);border:1px solid var(--accent);border-radius:12px;
+    padding:14px 22px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .servers-row{display:flex;justify-content:center;gap:28px;flex-wrap:wrap;position:relative;}
+  .server-node{
+    width:120px;background:var(--panel-light);border:1px solid var(--line);border-radius:14px;
+    padding:16px 12px;text-align:center;position:relative;transition:border-color .2s ease, opacity .2s ease;
+  }
+  .server-node .dot-status{width:10px;height:10px;border-radius:50%;margin:0 auto 8px;background:var(--up);box-shadow:0 0 8px var(--up);}
+  .server-node.down .dot-status{background:var(--down);box-shadow:0 0 8px var(--down);}
+  .server-node.down{opacity:.45;border-color:var(--down-dim);}
+  .server-node .name{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .server-node .req-count{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;}
+  .server-node button{margin-top:10px;width:100%;font-size:11px;padding:6px 8px;}
+  .svg-connectors{position:absolute;top:-50px;left:0;width:100%;height:50px;pointer-events:none;}
+  .outage-banner{
+    margin-top:20px;text-align:center;background:rgba(255,84,112,0.1);border:1px solid var(--down-dim);
+    color:var(--down);padding:12px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:13px;
+    display:none;
+  }
+  .outage-banner.show{display:block;animation:blink 1s ease-in-out infinite;}
+  .flow-dot{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--up);box-shadow:0 0 6px var(--up);z-index:5;}
+  .flow-dot.fail{background:var(--down);box-shadow:0 0 6px var(--down);}
+
+  /* NINES GAUGE */
+  .nines-layout{display:grid;grid-template-columns:.9fr 1.1fr;gap:32px;align-items:center;}
+  @media(max-width:760px){.nines-layout{grid-template-columns:1fr;}}
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;}
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;}
+  .tab{
+    font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px 12px;border-radius:8px;
+    border:1px solid var(--line);background:var(--panel-light);cursor:pointer;color:var(--muted);
+  }
+  .tab.active{border-color:var(--up);color:var(--up);background:rgba(53,211,153,.08);}
+  .downtime-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;}
+  .downtime-item{background:var(--panel-light);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .downtime-item .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .downtime-item .v{font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:700;margin-top:4px;color:var(--warn);}
+
+  table.sla{width:100%;border-collapse:collapse;margin-top:18px;font-size:13.5px;}
+  table.sla th, table.sla td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);}
+  table.sla th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em;}
+  table.sla td.pct{font-family:'JetBrains Mono',monospace;color:var(--up);}
+
+  /* FORMULA */
+  .formula-box{
+    text-align:center;font-family:'JetBrains Mono',monospace;font-size:22px;background:var(--panel-light);
+    border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:24px;
+  }
+  .formula-box .frac{display:inline-flex;flex-direction:column;vertical-align:middle;margin:0 8px;}
+  .formula-box .frac span{display:block;padding:2px 8px;}
+  .formula-box .frac .bar{border-top:2px solid var(--text);}
+  .slider-group{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:600px){.slider-group{grid-template-columns:1fr;}}
+  .slider-item label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px;}
+  input[type=range]{width:100%;accent-color:var(--accent);}
+  .result-big{text-align:center;margin-top:24px;}
+  .result-big .pct{font-family:'JetBrains Mono',monospace;font-size:56px;font-weight:700;color:var(--up);}
+  .result-big .tag{color:var(--muted);font-size:13px;margin-top:4px;}
+
+  /* QUIZ */
+  .quiz-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px;}
+  .quiz-q{font-weight:600;margin-bottom:12px;}
+  .quiz-opts{display:grid;gap:8px;}
+  .quiz-opt{
+    border:1px solid var(--line);background:var(--panel-light);padding:10px 14px;border-radius:8px;cursor:pointer;
+    font-size:14px;transition:all .15s ease;
+  }
+  .quiz-opt:hover{border-color:var(--accent);}
+  .quiz-opt.correct{border-color:var(--up);background:rgba(53,211,153,.1);color:var(--up);}
+  .quiz-opt.wrong{border-color:var(--down);background:rgba(255,84,112,.1);color:var(--down);}
+
+  footer{text-align:center;margin-top:80px;color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="eyebrow"><span class="dot"></span>System Design Lab · Characteristic 1 of 8</span>
+  <h1 class="title display">Availability</h1>
+  <p class="sub">Can the system respond right now, when someone actually needs it? Not "does it work" — <em>is it up</em>, at this exact second.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- HERO: LIVE STATUS BOARD -->
+  <section>
+    <div class="panel board">
+      <div>
+        <div class="server-scene" id="heroScene">
+          <div class="user-icon">🧑‍💻</div>
+          <div class="link-line"></div>
+          <div class="server-icon up" id="heroServer">🖥️
+            <div class="pulse-ring animate" id="heroPulse"></div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="danger" id="killBtn">⚡ Kill the server</button>
+          <button class="primary" id="reviveBtn" disabled>↻ Bring it back</button>
+          <button id="pingBtn">📨 Send a request</button>
+        </div>
+        <div class="console" id="heroConsole"></div>
+      </div>
+      <div class="stat-col">
+        <div class="stat-box">
+          <div class="label">Server status</div>
+          <div class="value up-color" id="statusLabel">OPERATIONAL</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Session uptime</div>
+          <div class="value" id="uptimeVal">0s</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Session downtime</div>
+          <div class="value" id="downtimeVal">0s</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Live availability</div>
+          <div class="value up-color" id="availVal">100.00%</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHAT BREAKS IT -->
+  <section>
+    <div class="section-head">
+      <div class="tag">01 · The problem</div>
+      <h2 class="display">What actually breaks availability</h2>
+      <p>Availability isn't just "the code has no bugs." It's a war on many fronts. Anything that stops a request from getting a response counts.</p>
+    </div>
+    <div class="cause-grid">
+      <div class="cause-card"><div class="icon">🔌</div><h3>Hardware failure</h3><p>Disks die, RAM fails, power supplies burn out — silently, at 3am.</p></div>
+      <div class="cause-card"><div class="icon">🌐</div><h3>Network partition</h3><p>The server is alive, but nothing can reach it. Same effect as being dead.</p></div>
+      <div class="cause-card"><div class="icon">📈</div><h3>Traffic spike</h3><p>A sudden surge (sale, viral post) overwhelms capacity and requests queue up or drop.</p></div>
+      <div class="cause-card"><div class="icon">🚀</div><h3>Bad deployment</h3><p>A new release ships a crash bug. Every instance running it goes down together.</p></div>
+      <div class="cause-card"><div class="icon">🌪️</div><h3>Natural disaster</h3><p>A single data center can be taken out by fire, flood, or a regional outage.</p></div>
+      <div class="cause-card"><div class="icon">🧑‍🔧</div><h3>Human error</h3><p>Misconfigurations and fat-fingered commands cause a huge share of real outages.</p></div>
+    </div>
+  </section>
+
+  <!-- REDUNDANCY DEMO -->
+  <section>
+    <div class="section-head">
+      <div class="tag">02 · The fix</div>
+      <h2 class="display">Redundancy + load balancing</h2>
+      <p>One server is a single point of failure. Put several behind a load balancer, and the health check quietly routes around anyone who goes down. Try killing servers below, then send a wave of requests.</p>
+    </div>
+    <div class="panel">
+      <div class="redundancy-scene" id="redScene">
+        <div class="lb-row">
+          <div class="lb-box">⚖️ Load Balancer</div>
+        </div>
+        <div class="servers-row" id="serversRow">
+          <div class="server-node" data-id="0">
+            <div class="dot-status"></div>
+            <div class="name">server-a</div>
+            <div class="req-count">0</div>
+            <button class="toggle-btn">Kill</button>
+          </div>
+          <div class="server-node" data-id="1">
+            <div class="dot-status"></div>
+            <div class="name">server-b</div>
+            <div class="req-count">0</div>
+            <button class="toggle-btn">Kill</button>
+          </div>
+          <div class="server-node" data-id="2">
+            <div class="dot-status"></div>
+            <div class="name">server-c</div>
+            <div class="req-count">0</div>
+            <button class="toggle-btn">Kill</button>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:center;margin-top:26px;">
+        <button class="primary" id="waveBtn">📨 Send a wave of 9 requests</button>
+        <button id="resetRedBtn">↻ Reset all servers</button>
+      </div>
+      <div class="outage-banner" id="outageBanner">⚠ ALL SERVERS DOWN — 100% outage. Every request just failed.</div>
+    </div>
+  </section>
+
+  <!-- NINES -->
+  <section>
+    <div class="section-head">
+      <div class="tag">03 · Measuring it</div>
+      <h2 class="display">The nines</h2>
+      <p>Availability is usually promised as a percentage of time in a year. The scary part: each extra "9" shrinks your allowed downtime by 10x. Click through them.</p>
+    </div>
+    <div class="panel nines-layout">
+      <div class="gauge-wrap">
+        <svg width="220" height="140" viewBox="0 0 220 140">
+          <path d="M 20 120 A 90 90 0 0 1 200 120" stroke="#243050" stroke-width="14" fill="none" stroke-linecap="round"/>
+          <path id="gaugeArc" d="M 20 120 A 90 90 0 0 1 200 120" stroke="#35d399" stroke-width="14" fill="none" stroke-linecap="round"
+                stroke-dasharray="283" stroke-dashoffset="283"/>
+          <text x="110" y="105" text-anchor="middle" fill="#e8edf5" font-family="JetBrains Mono, monospace" font-size="26" font-weight="700" id="gaugeText">90%</text>
+        </svg>
+        <div class="tabs" id="ninesTabs"></div>
+      </div>
+      <div>
+        <div class="downtime-grid" id="downtimeGrid"></div>
+        <table class="sla">
+          <thead><tr><th>Real-world reference</th><th>Typical target</th></tr></thead>
+          <tbody>
+            <tr><td>Cloud compute SLA (e.g. AWS EC2)</td><td class="pct">99.99%</td></tr>
+            <tr><td>Managed Kubernetes SLA</td><td class="pct">99.95%</td></tr>
+            <tr><td>Core banking / payments systems</td><td class="pct">99.999%</td></tr>
+            <tr><td>Typical internal company tool</td><td class="pct">99%</td></tr>
+            <tr><td>Telecom carrier network</td><td class="pct">99.9999%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORMULA -->
+  <section>
+    <div class="section-head">
+      <div class="tag">04 · The formula</div>
+      <h2 class="display">Do the math yourself</h2>
+      <p>Availability is simply the fraction of time the system was actually usable. Drag the sliders to model a month for your own system.</p>
+    </div>
+    <div class="panel">
+      <div class="formula-box">
+        Availability =
+        <span class="frac"><span>Uptime</span><span class="bar"></span><span>Uptime + Downtime</span></span>
+        × 100
+      </div>
+      <div class="slider-group">
+        <div class="slider-item">
+          <label>Uptime this month: <span id="upLabel" class="mono">720</span> hours</label>
+          <input type="range" id="upSlider" min="0" max="744" value="720">
+        </div>
+        <div class="slider-item">
+          <label>Downtime this month: <span id="downLabel" class="mono">24</span> hours</label>
+          <input type="range" id="downSlider" min="0" max="200" value="24">
+        </div>
+      </div>
+      <div class="result-big">
+        <div class="pct" id="formulaResult">96.77%</div>
+        <div class="tag" id="formulaNines">≈ between one and two nines</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section>
+    <div class="section-head">
+      <div class="tag">05 · Quick check</div>
+      <h2 class="display">Test the room</h2>
+      <p>Cold-call these live — click an option to reveal the answer on screen.</p>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q1. A system is "up" but a network cable is cut so no one can reach it. Is it available?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Yes — the server itself is running fine</div>
+        <div class="quiz-opt" data-correct="true">No — availability is about being reachable and responsive, not just "alive"</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q2. Going from 99.9% to 99.99% availability roughly means allowed downtime per year...</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Stays about the same</div>
+        <div class="quiz-opt" data-correct="true">Shrinks by about 10x (≈8.7 hours → ≈53 minutes)</div>
+        <div class="quiz-opt" data-correct="false">Doubles</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q3. What's the single biggest lever for improving availability in a system design interview answer?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Writing more unit tests</div>
+        <div class="quiz-opt" data-correct="true">Removing single points of failure via redundancy and failover</div>
+        <div class="quiz-opt" data-correct="false">Using a faster programming language</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>availability.model — up next: reliability →</footer>
+
+<script>
+// ---------- HERO SINGLE SERVER DEMO ----------
+const heroServer = document.getElementById('heroServer');
+const heroPulse = document.getElementById('heroPulse');
+const killBtn = document.getElementById('killBtn');
+const reviveBtn = document.getElementById('reviveBtn');
+const pingBtn = document.getElementById('pingBtn');
+const statusLabel = document.getElementById('statusLabel');
+const uptimeVal = document.getElementById('uptimeVal');
+const downtimeVal = document.getElementById('downtimeVal');
+const availVal = document.getElementById('availVal');
+const heroConsole = document.getElementById('heroConsole');
+const heroScene = document.getElementById('heroScene');
+
+let isUp = true;
+let upSeconds = 0, downSeconds = 0;
+
+function fmtTime(s){
+  if(s < 60) return s + 's';
+  const m = Math.floor(s/60), r = s%60;
+  return m + 'm ' + r + 's';
+}
+
+function log(msg, cls){
+  const d = document.createElement('div');
+  const t = new Date().toLocaleTimeString();
+  d.textContent = '[' + t + '] ' + msg;
+  if(cls) d.className = cls;
+  heroConsole.prepend(d);
+}
+
+setInterval(() => {
+  if(isUp) upSeconds++; else downSeconds++;
+  uptimeVal.textContent = fmtTime(upSeconds);
+  downtimeVal.textContent = fmtTime(downSeconds);
+  const total = upSeconds + downSeconds;
+  const pct = total === 0 ? 100 : (upSeconds/total*100);
+  availVal.textContent = pct.toFixed(2) + '%';
+  availVal.className = 'value ' + (pct > 99 ? 'up-color' : 'down-color');
+}, 1000);
+
+killBtn.addEventListener('click', () => {
+  isUp = false;
+  heroServer.classList.remove('up'); heroServer.classList.add('down');
+  heroPulse.classList.remove('animate');
+  statusLabel.textContent = 'DOWN';
+  statusLabel.className = 'value down-color';
+  killBtn.disabled = true; reviveBtn.disabled = false;
+  log('Server DOWN — health checks failing', 'err');
+});
+
+reviveBtn.addEventListener('click', () => {
+  isUp = true;
+  heroServer.classList.remove('down'); heroServer.classList.add('up');
+  heroPulse.classList.add('animate');
+  statusLabel.textContent = 'OPERATIONAL';
+  statusLabel.className = 'value up-color';
+  killBtn.disabled = false; reviveBtn.disabled = true;
+  log('Server back UP — health checks passing');
+});
+
+pingBtn.addEventListener('click', () => {
+  const dot = document.createElement('div');
+  dot.className = 'req-dot';
+  dot.style.left = '90px';
+  heroScene.appendChild(dot);
+  requestAnimationFrame(() => { dot.style.left = 'calc(50% - 5px)'; });
+  setTimeout(() => {
+    if(isUp){
+      log('GET /health → 200 OK');
+    } else {
+      dot.classList.add('fail');
+      dot.style.left = '90px';
+      heroServer.classList.add('shake');
+      setTimeout(()=>heroServer.classList.remove('shake'), 400);
+      log('GET /health → 503 Service Unavailable', 'err');
+    }
+    setTimeout(() => dot.remove(), 900);
+  }, 800);
+});
+
+log('Server booted — monitoring started');
+
+// ---------- REDUNDANCY DEMO ----------
+const serverNodes = Array.from(document.querySelectorAll('.server-node'));
+const serverState = [true, true, true];
+const outageBanner = document.getElementById('outageBanner');
+const redScene = document.getElementById('redScene');
+const serversRow = document.getElementById('serversRow');
+
+serverNodes.forEach((node, i) => {
+  const btn = node.querySelector('.toggle-btn');
+  btn.addEventListener('click', () => {
+    serverState[i] = !serverState[i];
+    renderServer(i);
+  });
+});
+
+function renderServer(i){
+  const node = serverNodes[i];
+  const btn = node.querySelector('.toggle-btn');
+  if(serverState[i]){
+    node.classList.remove('down');
+    btn.textContent = 'Kill';
+  } else {
+    node.classList.add('down');
+    btn.textContent = 'Revive';
+  }
+  const anyUp = serverState.some(s => s);
+  outageBanner.classList.toggle('show', !anyUp);
+}
+
+document.getElementById('resetRedBtn').addEventListener('click', () => {
+  for(let i=0;i<3;i++){ serverState[i] = true; renderServer(i); node_counts_reset(); }
+});
+
+function node_counts_reset(){
+  serverNodes.forEach(n => n.querySelector('.req-count').textContent = '0');
+}
+
+document.getElementById('waveBtn').addEventListener('click', () => {
+  const healthyIdx = serverState.map((s,i)=>s?i:null).filter(v=>v!==null);
+  const total = 9;
+  for(let i=0;i<total;i++){
+    setTimeout(() => sendOneRequest(healthyIdx), i * 180);
+  }
+});
+
+function sendOneRequest(healthyIdx){
+  const rowRect = serversRow.getBoundingClientRect();
+  const sceneRect = redScene.getBoundingClientRect();
+  const dot = document.createElement('div');
+  dot.className = 'flow-dot';
+  const startX = sceneRect.width/2 - 4;
+  dot.style.left = startX + 'px';
+  dot.style.top = '20px';
+  redScene.appendChild(dot);
+
+  if(healthyIdx.length === 0){
+    // total outage - dot dies at LB
+    requestAnimationFrame(()=>{
+      dot.classList.add('fail');
+      dot.style.top = '55px';
+    });
+    setTimeout(()=>dot.remove(), 900);
+    return;
+  }
+  const target = healthyIdx[Math.floor(Math.random()*healthyIdx.length)];
+  const targetNode = serverNodes[target];
+  const targetRect = targetNode.getBoundingClientRect();
+  const targetX = (targetRect.left - sceneRect.left) + targetRect.width/2 - 4;
+  requestAnimationFrame(()=>{
+    dot.style.top = '55px';
+  });
+  setTimeout(()=>{
+    dot.style.left = targetX + 'px';
+    dot.style.top = (targetRect.top - sceneRect.top) + 'px';
+  }, 250);
+  setTimeout(()=>{
+    dot.remove();
+    const counter = targetNode.querySelector('.req-count');
+    counter.textContent = (parseInt(counter.textContent)+1);
+  }, 1000);
+}
+
+// ---------- NINES GAUGE ----------
+const ninesData = [
+  {label:'90%', value:0.90},
+  {label:'99%', value:0.99},
+  {label:'99.9%', value:0.999},
+  {label:'99.99%', value:0.9999},
+  {label:'99.999%', value:0.99999},
+  {label:'99.9999%', value:0.999999},
+];
+const YEAR_SECONDS = 365*24*3600;
+const ninesTabs = document.getElementById('ninesTabs');
+const gaugeArc = document.getElementById('gaugeArc');
+const gaugeText = document.getElementById('gaugeText');
+const downtimeGrid = document.getElementById('downtimeGrid');
+const ARC_LENGTH = 283;
+
+function formatDuration(seconds){
+  if(seconds >= 86400) return (seconds/86400).toFixed(1) + ' days';
+  if(seconds >= 3600) return (seconds/3600).toFixed(1) + ' hours';
+  if(seconds >= 60) return (seconds/60).toFixed(1) + ' min';
+  return seconds.toFixed(1) + ' sec';
+}
+
+function selectNine(idx){
+  Array.from(ninesTabs.children).forEach((c,i)=>c.classList.toggle('active', i===idx));
+  const nine = ninesData[idx];
+  const downtimeYearSec = (1-nine.value) * YEAR_SECONDS;
+  const fillRatio = idx / (ninesData.length - 1); // visual progression across gauge
+  gaugeArc.setAttribute('stroke-dashoffset', ARC_LENGTH - fillRatio*ARC_LENGTH);
+  gaugeText.textContent = nine.label;
+
+  downtimeGrid.innerHTML = `
+    <div class="downtime-item"><div class="k">Per year</div><div class="v">${formatDuration(downtimeYearSec)}</div></div>
+    <div class="downtime-item"><div class="k">Per month</div><div class="v">${formatDuration(downtimeYearSec/12)}</div></div>
+    <div class="downtime-item"><div class="k">Per week</div><div class="v">${formatDuration(downtimeYearSec/52)}</div></div>
+    <div class="downtime-item"><div class="k">Per day</div><div class="v">${formatDuration(downtimeYearSec/365)}</div></div>
+  `;
+}
+
+ninesData.forEach((n, i) => {
+  const tab = document.createElement('div');
+  tab.className = 'tab';
+  tab.textContent = n.label;
+  tab.addEventListener('click', () => selectNine(i));
+  ninesTabs.appendChild(tab);
+});
+selectNine(0);
+
+// ---------- FORMULA SLIDERS ----------
+const upSlider = document.getElementById('upSlider');
+const downSlider = document.getElementById('downSlider');
+const upLabel = document.getElementById('upLabel');
+const downLabel = document.getElementById('downLabel');
+const formulaResult = document.getElementById('formulaResult');
+const formulaNines = document.getElementById('formulaNines');
+
+function nineDescriptor(pct){
+  if(pct >= 99.999) return '≈ five nines — extreme, aerospace/telecom-grade';
+  if(pct >= 99.99) return '≈ four nines — top-tier cloud infrastructure';
+  if(pct >= 99.9) return '≈ three nines — solid production SLA';
+  if(pct >= 99) return '≈ two nines — decent, some visible outages';
+  return '< two nines — frequent, noticeable downtime';
+}
+
+function updateFormula(){
+  const up = parseInt(upSlider.value);
+  const down = parseInt(downSlider.value);
+  upLabel.textContent = up;
+  downLabel.textContent = down;
+  const pct = (up+down)===0 ? 0 : (up/(up+down))*100;
+  formulaResult.textContent = pct.toFixed(2) + '%';
+  formulaNines.textContent = nineDescriptor(pct);
+}
+upSlider.addEventListener('input', updateFormula);
+downSlider.addEventListener('input', updateFormula);
+updateFormula();
+
+// ---------- QUIZ ----------
+document.querySelectorAll('.quiz-card').forEach(card => {
+  const opts = card.querySelectorAll('.quiz-opt');
+  opts.forEach(opt => {
+    opt.addEventListener('click', () => {
+      if(card.dataset.answered) return;
+      card.dataset.answered = 'true';
+      opts.forEach(o => {
+        o.classList.add(o.dataset.correct === 'true' ? 'correct' : 'wrong');
+      });
+    });
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reliability — System Design Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1a;
+    --panel:#121a2c;
+    --panel-light:#182234;
+    --line:#243050;
+    --text:#e8edf5;
+    --muted:#8b98b3;
+    --up:#35d399;
+    --up-dim:#1d5c46;
+    --down:#ff5470;
+    --down-dim:#6b2532;
+    --warn:#ffb020;
+    --accent:#4c8dff;
+    --reliable:#a78bfa;
+    --reliable-dim:#4c3d80;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  ::selection{background:var(--reliable);color:#0a0f1a;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px 120px;}
+
+  header{padding:64px 24px 40px;text-align:center;position:relative;overflow:hidden;}
+  header::before{
+    content:"";position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(167,139,250,0.12), transparent 45%),
+      radial-gradient(circle at 80% 0%, rgba(76,141,255,0.08), transparent 45%);
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;
+    color:var(--reliable);text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;
+    background:rgba(167,139,250,0.08);border:1px solid var(--reliable-dim);padding:6px 14px;border-radius:999px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--reliable);box-shadow:0 0 8px var(--reliable);animation:blink 1.6s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+  h1.title{font-size:clamp(42px,8vw,76px);margin:20px 0 8px;font-weight:700;letter-spacing:-0.02em;}
+  header p.sub{color:var(--muted);font-size:18px;max-width:600px;margin:0 auto;line-height:1.5;}
+
+  section{margin-top:72px;}
+  .section-head{margin-bottom:28px;}
+  .section-head .tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--reliable);letter-spacing:.12em;text-transform:uppercase;}
+  .section-head h2{font-family:'Space Grotesk',sans-serif;font-size:30px;margin:6px 0 10px;}
+  .section-head p{color:var(--muted);font-size:16px;line-height:1.6;max-width:680px;}
+
+  .panel{
+    background:linear-gradient(180deg, var(--panel), var(--panel-light));
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:28px;
+  }
+
+  .analogy{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;}
+  @media(max-width:700px){.analogy{grid-template-columns:1fr;}}
+  .analogy-card{border-radius:14px;padding:18px 20px;font-size:14px;line-height:1.55;}
+  .analogy-card.avail{background:rgba(53,211,153,.06);border:1px solid var(--up-dim);}
+  .analogy-card.rel{background:rgba(167,139,250,.08);border:1px solid var(--reliable-dim);}
+  .analogy-card b{display:block;font-family:'Space Grotesk',sans-serif;font-size:15px;margin-bottom:6px;}
+  .analogy-card.avail b{color:var(--up);}
+  .analogy-card.rel b{color:var(--reliable);}
+
+  .timeline-block{margin-bottom:26px;}
+  .timeline-label{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--muted);margin-bottom:8px;}
+  .timeline{position:relative;height:34px;border-radius:8px;background:var(--up);overflow:hidden;border:1px solid var(--up-dim);}
+  .tick{position:absolute;top:0;bottom:0;background:var(--down);}
+  .timeline-caption{font-size:12px;color:var(--muted);margin-top:6px;}
+
+  .slider-block{margin-top:20px;}
+  .slider-block label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px;}
+  input[type=range]{width:100%;accent-color:var(--reliable);}
+
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px;}
+  @media(max-width:700px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+  .stat-box{background:var(--panel-light);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .stat-box .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
+  .stat-box .value{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;margin-top:4px;}
+  .value.rel-color{color:var(--reliable);}
+  .value.up-color{color:var(--up);}
+  .value.down-color{color:var(--down);}
+  .verdict{margin-top:16px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:14px;padding:12px;border-radius:10px;background:rgba(167,139,250,.08);border:1px solid var(--reliable-dim);color:var(--reliable);}
+
+  .cause-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}
+  .cause-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;transition:transform .15s ease, border-color .15s ease;}
+  .cause-card:hover{transform:translateY(-3px);border-color:var(--reliable);}
+  .cause-card .icon{font-size:26px;}
+  .cause-card h3{font-size:15px;margin:10px 0 4px;font-family:'Space Grotesk',sans-serif;}
+  .cause-card p{font-size:13px;color:var(--muted);line-height:1.5;margin:0;}
+
+  .quorum-row{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin:20px 0;}
+  .quorum-node{width:130px;text-align:center;background:var(--panel-light);border:1px solid var(--line);border-radius:14px;padding:16px 10px;transition:border-color .2s ease;}
+  .quorum-node .name{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:8px;}
+  .quorum-node .value-display{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--up);margin-bottom:10px;}
+  .quorum-node.corrupt .value-display{color:var(--down);}
+  .quorum-node.corrupt{border-color:var(--down-dim);}
+  .quorum-node button{width:100%;font-size:11px;padding:6px 8px;}
+  .client-verdict{text-align:center;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:15px;padding:14px;border-radius:10px;}
+  .client-verdict.correct{background:rgba(53,211,153,.08);border:1px solid var(--up-dim);color:var(--up);}
+  .client-verdict.wrong{background:rgba(255,84,112,.08);border:1px solid var(--down-dim);color:var(--down);}
+
+  .retry-scene{position:relative;height:120px;display:flex;align-items:center;justify-content:center;gap:120px;}
+  .retry-node{width:80px;height:80px;border-radius:18px;background:var(--panel-light);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:30px;}
+  .retry-link{position:absolute;top:50%;left:100px;right:100px;height:2px;background:var(--line);}
+  .retry-packet{position:absolute;top:calc(50% - 6px);width:12px;height:12px;border-radius:50%;background:var(--reliable);box-shadow:0 0 8px var(--reliable);transition:left 0.7s ease;}
+  .retry-packet.fail{background:var(--down);box-shadow:0 0 8px var(--down);}
+  .retry-log{margin-top:16px;background:#060a12;border:1px solid var(--line);border-radius:10px;padding:12px 14px;height:100px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+  .retry-log div{margin-bottom:4px;}
+  .retry-log .err{color:var(--down);}
+  .retry-log .ok{color:var(--up);}
+  .retry-log .info{color:var(--reliable);}
+
+  .btn-row{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;justify-content:center;}
+  button{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:14px;padding:10px 18px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel-light);color:var(--text);cursor:pointer;
+    transition:all .15s ease;
+  }
+  button:hover{border-color:var(--reliable);transform:translateY(-1px);}
+  button.primary{background:var(--reliable);border-color:var(--reliable);color:#0a0f1a;}
+  button.primary:hover{filter:brightness(1.1);}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+  .formula-box{
+    text-align:center;font-family:'JetBrains Mono',monospace;font-size:20px;background:var(--panel-light);
+    border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:24px;
+  }
+  .slider-group{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:600px){.slider-group{grid-template-columns:1fr;}}
+  .result-big{text-align:center;margin-top:20px;}
+  .result-big .pct{font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:700;color:var(--reliable);}
+  .result-big .tag{color:var(--muted);font-size:13px;margin-top:4px;}
+
+  .quiz-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px;}
+  .quiz-q{font-weight:600;margin-bottom:12px;}
+  .quiz-opts{display:grid;gap:8px;}
+  .quiz-opt{border:1px solid var(--line);background:var(--panel-light);padding:10px 14px;border-radius:8px;cursor:pointer;font-size:14px;transition:all .15s ease;}
+  .quiz-opt:hover{border-color:var(--reliable);}
+  .quiz-opt.correct{border-color:var(--up);background:rgba(53,211,153,.1);color:var(--up);}
+  .quiz-opt.wrong{border-color:var(--down);background:rgba(255,84,112,.1);color:var(--down);}
+
+  footer{text-align:center;margin-top:80px;color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="eyebrow"><span class="dot"></span>System Design Lab · Characteristic 2 of 8</span>
+  <h1 class="title display">Reliability</h1>
+  <p class="sub">Not "is it up right now" — "does it keep doing the right thing, every time, without failing"?</p>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <div class="section-head">
+      <div class="tag">00 · The distinction</div>
+      <h2 class="display">Available ≠ Reliable</h2>
+      <p>These two get confused constantly. They measure completely different things.</p>
+    </div>
+    <div class="analogy">
+      <div class="analogy-card avail">
+        <b>Availability</b>
+        The friend who always picks up the phone — but half the time gives you wrong directions. Always reachable. Not trustworthy.
+      </div>
+      <div class="analogy-card rel">
+        <b>Reliability</b>
+        The friend who's sometimes unreachable — but when they do answer, the advice is always correct. Harder to reach. Never wrong.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="tag">01 · The core insight</div>
+      <h2 class="display">Same uptime. Wildly different reliability.</h2>
+      <p>Both systems below lose the exact same amount of time this month — so their <em>availability</em> is identical. Drag the slider and watch how splitting that downtime into more, smaller failures destroys reliability while availability doesn't move at all.</p>
+    </div>
+    <div class="panel">
+      <div class="timeline-block">
+        <div class="timeline-label"><span>SYSTEM — 30 day month</span><span id="failCountLabel">1 failure</span></div>
+        <div class="timeline" id="timelineBar"></div>
+        <div class="timeline-caption">Each red tick is one outage. Total red width = total downtime (fixed).</div>
+      </div>
+
+      <div class="slider-block">
+        <label>Number of failures this month: <span id="failSliderVal" class="mono">1</span> (downtime redistributed evenly, total stays 7.2 hours)</label>
+        <input type="range" id="failSlider" min="1" max="200" value="1">
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-box"><div class="label">Availability</div><div class="value up-color" id="availStat">99.00%</div></div>
+        <div class="stat-box"><div class="label">Failures / month</div><div class="value" id="failStat">1</div></div>
+        <div class="stat-box"><div class="label">MTBF</div><div class="value rel-color" id="mtbfStat">720 hrs</div></div>
+        <div class="stat-box"><div class="label">MTTR</div><div class="value" id="mttrStat">7.2 hrs</div></div>
+      </div>
+      <div class="verdict" id="verdictBox">One long outage, otherwise rock solid — high reliability, same availability.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="tag">02 · Building it</div>
+      <h2 class="display">How reliability is engineered</h2>
+      <p>Availability is fixed mostly with redundancy. Reliability needs a different toolbox — one focused on correctness, not just uptime.</p>
+    </div>
+    <div class="cause-grid">
+      <div class="cause-card"><div class="icon">🗳️</div><h3>Replication + quorum</h3><p>Store data on multiple nodes; require a majority to agree before trusting a value.</p></div>
+      <div class="cause-card"><div class="icon">✅</div><h3>Checksums / validation</h3><p>Detect silent data corruption before it's ever served to a user.</p></div>
+      <div class="cause-card"><div class="icon">🔁</div><h3>Retries + idempotency</h3><p>Automatically retry transient failures safely, without causing duplicate side-effects.</p></div>
+      <div class="cause-card"><div class="icon">🧯</div><h3>Circuit breakers</h3><p>Stop calling a failing dependency so errors don't cascade through the system.</p></div>
+      <div class="cause-card"><div class="icon">🪜</div><h3>Graceful degradation</h3><p>Serve a slightly reduced experience instead of a hard failure when something's off.</p></div>
+      <div class="cause-card"><div class="icon">🐒</div><h3>Chaos engineering</h3><p>Deliberately break things in production to prove the system survives real failures.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="tag">03 · Replication in action</div>
+      <h2 class="display">Can you trust the answer?</h2>
+      <p>Three replicas store the same value. Corrupt one or two, then have the client read with a majority vote, and see when reliability actually breaks.</p>
+    </div>
+    <div class="panel">
+      <div class="quorum-row" id="quorumRow">
+        <div class="quorum-node" data-id="0"><div class="name">replica-1</div><div class="value-display">42</div><button class="corrupt-btn">Corrupt</button></div>
+        <div class="quorum-node" data-id="1"><div class="name">replica-2</div><div class="value-display">42</div><button class="corrupt-btn">Corrupt</button></div>
+        <div class="quorum-node" data-id="2"><div class="name">replica-3</div><div class="value-display">42</div><button class="corrupt-btn">Corrupt</button></div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="readBtn">📖 Client reads (majority vote)</button>
+        <button id="resetQuorumBtn">↻ Reset replicas</button>
+      </div>
+      <div id="clientVerdict"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="tag">04 · Handling transient failure</div>
+      <h2 class="display">Retries turn a blip into a non-event</h2>
+      <p>Most real-world failures are transient — a dropped packet, a momentary timeout. A reliable client just tries again.</p>
+    </div>
+    <div class="panel">
+      <div class="retry-scene" id="retryScene">
+        <div class="retry-node">🧑‍💻</div>
+        <div class="retry-link"></div>
+        <div class="retry-node">🖥️</div>
+      </div>
+      <div class="btn-row"><button class="primary" id="retrySendBtn">📨 Send request (will glitch once)</button></div>
+      <div class="retry-log" id="retryLog"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="tag">05 · The formula</div>
+      <h2 class="display">Reliability as a probability</h2>
+      <p>Assuming failures happen at a roughly constant rate, the probability a system survives an entire window <span class="mono">t</span> without failing is <span class="mono">R(t) = e^(−t / MTBF)</span>. Longer MTBF or shorter windows both push reliability up.</p>
+    </div>
+    <div class="panel">
+      <div class="formula-box">R(t) = e <sup>−t / MTBF</sup></div>
+      <div class="slider-group">
+        <div class="slider-block" style="margin-top:0;">
+          <label>MTBF (hours): <span id="mtbfLabel" class="mono">720</span></label>
+          <input type="range" id="mtbfSlider" min="10" max="2000" value="720">
+        </div>
+        <div class="slider-block" style="margin-top:0;">
+          <label>Time window t (hours): <span id="tLabel" class="mono">24</span></label>
+          <input type="range" id="tSlider" min="1" max="720" value="24">
+        </div>
+      </div>
+      <div class="result-big">
+        <div class="pct" id="reliabilityResult">96.72%</div>
+        <div class="tag" id="reliabilityTag">chance of zero failures across the next 24 hours</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="tag">06 · Quick check</div>
+      <h2 class="display">Test the room</h2>
+      <p>Cold-call these live — click an option to reveal the answer on screen.</p>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q1. A server never goes down, but 1 in 20 responses returns slightly corrupted data. Is it reliable?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Yes — 100% uptime means 100% reliable</div>
+        <div class="quiz-opt" data-correct="true">No — it's perfectly available but not reliable, since correctness fails 5% of the time</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q2. Two systems both have 99% availability. System X fails once a month for 7.2 hours. System Y fails 200 times a month for ~2 minutes each. Which has better MTBF?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="true">System X — one rare failure means far more time between failures</div>
+        <div class="quiz-opt" data-correct="false">System Y — more failures means more redundancy</div>
+        <div class="quiz-opt" data-correct="false">Both are identical since availability is the same</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q3. Which technique specifically protects against silent data corruption (not just downtime)?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Adding more servers behind a load balancer</div>
+        <div class="quiz-opt" data-correct="true">Checksums and majority-vote reads across replicas</div>
+        <div class="quiz-opt" data-correct="false">Increasing server RAM</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>reliability.model — up next: scalability →</footer>
+
+<script>
+const MONTH_HOURS = 720;
+const DOWNTIME_HOURS = 7.2;
+const timelineBar = document.getElementById('timelineBar');
+const failSlider = document.getElementById('failSlider');
+const failSliderVal = document.getElementById('failSliderVal');
+const failCountLabel = document.getElementById('failCountLabel');
+const availStat = document.getElementById('availStat');
+const failStat = document.getElementById('failStat');
+const mtbfStat = document.getElementById('mtbfStat');
+const mttrStat = document.getElementById('mttrStat');
+const verdictBox = document.getElementById('verdictBox');
+
+function fmtHours(h){
+  if(h >= 1) return h.toFixed(2) + ' hrs';
+  const mins = h*60;
+  if(mins >= 1) return mins.toFixed(1) + ' min';
+  return (mins*60).toFixed(0) + ' sec';
+}
+
+function renderTimeline(n){
+  timelineBar.innerHTML = '';
+  const perFailureHours = DOWNTIME_HOURS / n;
+  const perFailurePct = (perFailureHours / MONTH_HOURS) * 100;
+  const minVisiblePct = 0.35;
+  for(let i=0;i<n;i++){
+    const tick = document.createElement('div');
+    const basePos = (i+0.5)/n * 100;
+    const jitter = (Math.sin(i*12.9898)*43758.5453 % 1) * 2 - 1;
+    const pos = Math.min(98, Math.max(0, basePos + jitter*1.2));
+    tick.className = 'tick';
+    tick.style.left = pos + '%';
+    tick.style.width = Math.max(perFailurePct, minVisiblePct) + '%';
+    timelineBar.appendChild(tick);
+  }
+}
+
+function verdictFor(n){
+  if(n <= 2) return 'One long outage, otherwise rock solid — high reliability, same availability.';
+  if(n <= 15) return 'A handful of failures a month — noticeably less trustworthy, same availability.';
+  if(n <= 60) return 'Frequent flickers — users start losing confidence, even though availability looks identical on paper.';
+  return 'Constant flakiness. Same 99% availability on a report — but this system is unreliable in every way that matters.';
+}
+
+function updateHero(){
+  const n = parseInt(failSlider.value);
+  failSliderVal.textContent = n;
+  failCountLabel.textContent = n + (n===1 ? ' failure' : ' failures');
+  renderTimeline(n);
+  availStat.textContent = '99.00%';
+  failStat.textContent = n;
+  const mtbf = MONTH_HOURS / n;
+  const mttr = DOWNTIME_HOURS / n;
+  mtbfStat.textContent = mtbf >= 1 ? mtbf.toFixed(1) + ' hrs' : (mtbf*60).toFixed(0) + ' min';
+  mttrStat.textContent = fmtHours(mttr);
+  verdictBox.textContent = verdictFor(n);
+}
+failSlider.addEventListener('input', updateHero);
+updateHero();
+
+const quorumNodes = Array.from(document.querySelectorAll('.quorum-node'));
+const quorumState = [true, true, true];
+quorumNodes.forEach((node,i)=>{
+  node.querySelector('.corrupt-btn').addEventListener('click', () => {
+    quorumState[i] = !quorumState[i];
+    node.classList.toggle('corrupt', !quorumState[i]);
+    const vd = node.querySelector('.value-display');
+    vd.textContent = quorumState[i] ? '42' : (Math.random()>0.5?'07':'19');
+    const btn = node.querySelector('.corrupt-btn');
+    btn.textContent = quorumState[i] ? 'Corrupt' : 'Restore';
+  });
+});
+document.getElementById('resetQuorumBtn').addEventListener('click', () => {
+  quorumState[0]=quorumState[1]=quorumState[2]=true;
+  quorumNodes.forEach(node=>{
+    node.classList.remove('corrupt');
+    node.querySelector('.value-display').textContent = '42';
+    node.querySelector('.corrupt-btn').textContent = 'Corrupt';
+  });
+  document.getElementById('clientVerdict').innerHTML = '';
+});
+document.getElementById('readBtn').addEventListener('click', () => {
+  const correctCount = quorumState.filter(s=>s).length;
+  const el = document.getElementById('clientVerdict');
+  if(correctCount >= 2){
+    el.innerHTML = '<div class="client-verdict correct">✔ Majority agrees on 42 — client returns the CORRECT value, even with one bad replica.</div>';
+  } else {
+    el.innerHTML = '<div class="client-verdict wrong">✘ Majority is corrupted — client returns a WRONG value with full confidence. Available, but not reliable.</div>';
+  }
+});
+
+const retryScene = document.getElementById('retryScene');
+const retryLog = document.getElementById('retryLog');
+function rlog(msg, cls){
+  const d = document.createElement('div');
+  d.textContent = msg;
+  if(cls) d.className = cls;
+  retryLog.prepend(d);
+}
+document.getElementById('retrySendBtn').addEventListener('click', (e) => {
+  e.target.disabled = true;
+  const packet = document.createElement('div');
+  packet.className = 'retry-packet';
+  packet.style.left = '90px';
+  retryScene.appendChild(packet);
+  rlog('→ attempt 1: sending request...', 'info');
+
+  requestAnimationFrame(()=> packet.style.left = 'calc(50% - 6px)');
+  setTimeout(()=>{
+    packet.classList.add('fail');
+    packet.style.left = '90px';
+    rlog('✘ attempt 1: timeout, no response', 'err');
+    setTimeout(()=>{
+      rlog('↻ retrying with backoff...', 'info');
+      packet.classList.remove('fail');
+      requestAnimationFrame(()=> packet.style.left = 'calc(50% - 6px)');
+      setTimeout(()=>{
+        rlog('✔ attempt 2: 200 OK — request succeeded', 'ok');
+        setTimeout(()=>{ packet.remove(); e.target.disabled = false; }, 500);
+      }, 750);
+    }, 500);
+  }, 750);
+});
+rlog('client ready', 'info');
+
+const mtbfSlider = document.getElementById('mtbfSlider');
+const tSlider = document.getElementById('tSlider');
+const mtbfLabel = document.getElementById('mtbfLabel');
+const tLabel = document.getElementById('tLabel');
+const reliabilityResult = document.getElementById('reliabilityResult');
+const reliabilityTag = document.getElementById('reliabilityTag');
+
+function updateReliabilityFormula(){
+  const mtbf = parseInt(mtbfSlider.value);
+  const t = parseInt(tSlider.value);
+  mtbfLabel.textContent = mtbf;
+  tLabel.textContent = t;
+  const r = Math.exp(-t/mtbf) * 100;
+  reliabilityResult.textContent = r.toFixed(2) + '%';
+  reliabilityTag.textContent = 'chance of zero failures across the next ' + t + ' hours';
+}
+mtbfSlider.addEventListener('input', updateReliabilityFormula);
+tSlider.addEventListener('input', updateReliabilityFormula);
+updateReliabilityFormula();
+
+document.querySelectorAll('.quiz-card').forEach(card => {
+  const opts = card.querySelectorAll('.quiz-opt');
+  opts.forEach(opt => {
+    opt.addEventListener('click', () => {
+      if(card.dataset.answered) return;
+      card.dataset.answered = 'true';
+      opts.forEach(o => o.classList.add(o.dataset.correct === 'true' ? 'correct' : 'wrong'));
+    });
+  });
+});
+</script>
+</body>
+</html>

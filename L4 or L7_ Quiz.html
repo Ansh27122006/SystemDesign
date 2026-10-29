@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>L4 or L7? Quiz</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f5fa;--panel:#fff;--ink:#14213d;--mute:#58647f;--line:#d6dcea;--soft:#eaeef7;--good:#1b8f4f;--bad:#d1384b;--warn:#d9830b;--l4:#0f8fb8;--l7:#7a4fd8;--c:#2f6fed}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--bad:#ff6b7d;--warn:#ffb340;--l4:#35c6f0;--l7:#b194ff;--c:#5b94ff}}
+:root[data-theme="dark"]{--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--bad:#ff6b7d;--warn:#ffb340;--l4:#35c6f0;--l7:#b194ff;--c:#5b94ff}
+[hidden]{display:none!important}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Avenir Next","Trebuchet MS",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 40px}
+h1{font:800 clamp(28px,6vw,40px)/1.1 "Avenir Next Condensed","Arial Narrow",system-ui,sans-serif;margin:0 0 12px}
+.top{display:flex;justify-content:space-between;gap:10px;font-weight:700;margin-bottom:6px}
+.prog{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin-bottom:14px}
+.prog i{display:block;height:100%;width:0;background:var(--c);transition:width .5s}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+.q{font-size:19px;font-weight:700;margin:0 0 12px}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pick button{font:inherit;font-weight:800;font-size:18px;padding:14px 8px;border-radius:12px;border:3px solid var(--k);background:var(--panel);color:var(--ink);cursor:pointer;transition:transform .15s,background .2s}
+.pick button small{display:block;font-weight:500;font-size:13px;color:var(--mute)}
+.pick button:hover:not(:disabled){transform:translateY(-3px);background:var(--soft)}
+.pick button:disabled{cursor:default;opacity:.55}
+.pick .b4{--k:var(--l4)}.pick .b7{--k:var(--l7)}
+.pick button.sel{opacity:1;background:var(--soft)}
+button:focus-visible{outline:3px solid var(--c);outline-offset:2px}
+svg{width:100%;height:auto;display:block;margin:12px 0 4px}
+svg text{font-family:inherit;fill:var(--ink)}
+.nd{fill:var(--panel);stroke:var(--line);stroke-width:2}
+.m{fill:var(--mute)!important;font-size:12px}
+.fb{border-radius:12px;padding:10px 12px;margin-top:6px;background:var(--soft);border-left:6px solid var(--line)}
+.fb.ok{border-color:var(--good)}.fb.no{border-color:var(--bad)}.fb.sl{border-color:var(--warn)}
+.next{margin-top:10px;font:inherit;font-weight:800;padding:10px 18px;border-radius:10px;border:0;background:var(--ink);color:var(--bg);cursor:pointer}
+.mark{font-weight:800;font-size:22px;animation:rise 1.2s forwards}
+@keyframes rise{to{transform:translateY(-22px);opacity:0}}
+.shake{animation:sh .5s}
+@keyframes sh{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.glow{animation:gl .8s}
+@keyframes gl{50%{stroke-width:9}}
+.end{text-align:center}.end .big{font:800 56px/1 "Avenir Next Condensed","Arial Narrow",system-ui,sans-serif}
+@media(prefers-reduced-motion:reduce){.shake,.glow,.mark{animation:none}}
+</style></head>
+<body><main>
+<h1>L4 or L7? Pick the right balancer</h1>
+<div id="game">
+<div class="top"><span id="pr">Question 1 of 10</span><span id="sc">Score 0 · Streak 0</span></div>
+<div class="prog"><i id="bar"></i></div>
+<div class="card">
+<p class="q" id="q"></p>
+<div class="pick"><button class="b4" data-a="4">L4<small>Transport: IP + port</small></button><button class="b7" data-a="7">L7<small>Application: URL, headers, cookies</small></button></div>
+<svg id="st" viewBox="0 0 560 230" aria-label="Request animation"></svg>
+<div class="fb" id="fb" hidden></div>
+<button class="next" id="nx" hidden>Next question</button>
+</div></div>
+<div class="card end" id="end" hidden><div class="big" id="fs"></div><p id="fm"></p><button class="next" id="again">Play again</button></div>
+</main>
+<script>
+const NS='http://www.w3.org/2000/svg',$=s=>document.querySelector(s);
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+const txt=(p,x,y,s,a={})=>{const t=el('text',{x,y,'text-anchor':'middle',...a},p);t.textContent=s;return t};
+function fly(svg,x1,y1,x2,y2,color,dur,done){const c=el('circle',{r:9,stroke:'var(--bg)','stroke-width':2},svg);c.style.fill=color;const t0=performance.now();(function f(t){const p=Math.min(1,(t-t0)/dur);c.setAttribute('cx',x1+(x2-x1)*p);c.setAttribute('cy',y1+(y2-y1)*p);if(p<1)requestAnimationFrame(f);else{c.remove();done&&done()}})(t0)}
+const Q=[
+{s:'Send /api/* traffic to one server pool and /static/* to another.',r:'GET /api/orders',a:7,l4:'203.0.113.7:443',l7:'GET /api/orders',sv:['Static pool','API pool'],to:1,why:'Routing by URL path needs the HTTP request, so it needs L7.'},
+{s:'A multiplayer game sends UDP packets and needs the lowest possible latency.',r:'UDP :27015',a:4,l4:'203.0.113.7:27015 (UDP)',l7:'not HTTP, nothing to parse',sv:['Game server 1','Game server 2'],to:0,why:'It is UDP with no HTTP to read. L4 is fast and simple, which is what a game needs.'},
+{s:'Send 10% of users with cookie group=B to a new version for an A/B test.',r:'Cookie: group=B',a:7,l4:'203.0.113.7:443',l7:'Cookie: group=B',sv:['Version A','Version B'],to:1,why:'Cookies are application data. Only L7 can read them and split traffic.'},
+{s:'Spread connections across 3 identical servers by IP and port, at maximum speed.',r:'TCP :443',a:4,l4:'203.0.113.7:443',l7:'encrypted bytes (extra parsing)',sv:['Server 1','Server 2'],to:0,why:'Identical servers need no content rules. L4 gives basic distribution with the least overhead.'},
+{s:'Rate-limit abusive clients hitting /login and block bad requests with a WAF.',r:'POST /login',a:7,l4:'198.51.100.9:443',l7:'POST /login, 400 hits/min',sv:['Blocked','Login app'],to:1,why:'Rate limiting by URL and WAF rules inspect request content, so they need L7.'},
+{s:'A streaming service handles millions of TCP connections and needs high throughput.',r:'TCP :443',a:4,l4:'203.0.113.7:443',l7:'extra work per request',sv:['Edge 1','Edge 2'],to:0,why:'Raw throughput with low overhead is the L4 strength.'},
+{s:'Route api.shop.com and www.shop.com to different microservices.',r:'Host: api.shop.com',a:7,l4:'203.0.113.7:443',l7:'Host: api.shop.com',sv:['Website','API service'],to:1,why:'Host-based routing reads the Host header, which only L7 can see.'},
+{s:'Spread TCP connections to a database cluster on port 5432.',r:'TCP :5432',a:4,l4:'10.0.1.5:5432',l7:'not HTTP, nothing to parse',sv:['DB node 1','DB node 2'],to:0,why:'It is plain TCP on a port. L4 handles this directly.'},
+{s:'Do a canary deploy: send requests with header X-Beta: true to the new build.',r:'X-Beta: true',a:7,l4:'203.0.113.7:443',l7:'X-Beta: true',sv:['Stable','Canary'],to:1,why:'Headers are application data, so header-based canaries need L7.'},
+{s:'Which fits "AWS ALB" and "Nginx as a reverse proxy" doing path-based routing?',r:'GET /checkout',a:7,l4:'203.0.113.7:443',l7:'GET /checkout',sv:['Other pool','Checkout pool'],to:1,why:'ALB and Nginx are L7 tools. AWS NLB and HAProxy in TCP mode are L4.'}
+].sort(()=>Math.random()-.5);
+let i,score,streak,busy,svg=$('#st');
+function stage(q){svg.innerHTML='';
+ el('rect',{x:20,y:85,width:54,height:54,rx:10,class:'nd'},svg);txt(svg,47,117,'User',{'font-weight':700,'font-size':13});
+ const chip=el('rect',{x:10,y:150,width:150,height:26,rx:13,fill:'var(--soft)'},svg);txt(svg,85,168,q.r,{class:'m'});
+ q.lb=el('rect',{x:230,y:70,width:100,height:84,rx:14,fill:'var(--panel)',stroke:'var(--line)','stroke-width':4},svg);
+ q.lt=txt(svg,280,119,'?',{'font-weight':800,'font-size':26});
+ q.pos=q.sv.map((n,k)=>{const y=40+k*130;el('line',{x1:330,y1:112,x2:420,y2:y,stroke:'var(--line)','stroke-width':2,'stroke-dasharray':'5 5'},svg);
+  const b=el('rect',{x:420,y:y-24,width:130,height:48,rx:10,class:'nd'},svg);txt(svg,485,y+5,n,{'font-weight':700,'font-size':13});return{y,b}})}
+function show(){const q=Q[i];$('#q').textContent=q.s;$('#pr').textContent=`Question ${i+1} of ${Q.length}`;$('#sc').textContent=`Score ${score} · Streak ${streak}`;
+ $('#bar').style.width=(i/Q.length*100)+'%';$('#fb').hidden=$('#nx').hidden=true;
+ document.querySelectorAll('.pick button').forEach(b=>{b.disabled=false;b.classList.remove('sel')});stage(q);busy=false}
+function answer(a){if(busy)return;busy=true;const q=Q[i],ok=a===q.a,k4=a===4;
+ document.querySelectorAll('.pick button').forEach(b=>{b.disabled=true;b.classList.toggle('sel',+b.dataset.a===a)});
+ const col=k4?'var(--l4)':'var(--l7)';q.lb.style.stroke=col;q.lt.textContent='L'+a;
+ fly(svg,74,112,230,112,'var(--c)',500,()=>{
+  const bub=txt(svg,280,52,'Reads: '+(k4?q.l4:q.l7),{class:'m'});
+  q.lb.classList.add('glow');
+  setTimeout(()=>{
+   const wrongPool=!ok&&k4,slow=!ok&&!k4,t=wrongPool?1-q.to:q.to,P=q.pos[t];
+   fly(svg,330,112,420,P.y,wrongPool?'var(--bad)':'var(--c)',slow?1100:500,()=>{
+    const c=ok?'var(--good)':wrongPool?'var(--bad)':'var(--warn)',s=ok?'✓':wrongPool?'✗':'⚠';
+    P.b.style.stroke=c;P.b.setAttribute('stroke-width',4);const m=txt(svg,540,P.y-26,s,{class:'mark'});m.style.fill=c;
+    if(wrongPool)q.lb.classList.add('shake');
+    if(ok){score++;streak++}else streak=0;
+    $('#sc').textContent=`Score ${score} · Streak ${streak}`;
+    const fb=$('#fb');fb.hidden=false;fb.className='fb '+(ok?'ok':wrongPool?'no':'sl');
+    fb.innerHTML=ok?`<b>Correct.</b> ${q.why}`:wrongPool?`<b>Not quite.</b> L4 only saw "${q.l4}", so it could not tell where this request belongs and sent it to the wrong place. ${q.why}`:`<b>Not quite.</b> L7 can do this, but it parses every request for no benefit, so it is slower (see the delay). ${q.why}`;
+    $('#nx').hidden=false;$('#nx').textContent=i===Q.length-1?'See results':'Next question';$('#nx').focus()})
+  },k4?300:800)})}
+function start(){i=0;score=0;streak=0;Q.sort(()=>Math.random()-.5);$('#game').hidden=false;$('#end').hidden=true;show()}
+document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>answer(+b.dataset.a));
+$('#nx').onclick=()=>{if(++i<Q.length)show();else{$('#game').hidden=true;$('#end').hidden=false;$('#fs').textContent=`${score} / ${Q.length}`;
+ $('#fm').textContent=score>=9?'Load balancing pro. Choose L4 for speed and L7 for intelligence.':score>=6?'Solid. Remember: if the decision needs URL, header or cookie data, it is L7.':'Keep going. L4 sees only IP and port; anything about content needs L7.'}};
+$('#again').onclick=start;
+start();
+</script></body></html>

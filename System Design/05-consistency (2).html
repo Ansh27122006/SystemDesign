@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Consistency — System Design Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1a; --panel:#121a2c; --panel-light:#182234; --line:#243050;
+    --text:#e8edf5; --muted:#8b98b3;
+    --up:#35d399; --up-dim:#1d5c46;
+    --down:#ff5470; --down-dim:#6b2532;
+    --warn:#ffb020; --warn-dim:#7a5713;
+    --accent:#4c8dff;
+    --consist:#38bdf8; --consist-dim:#155e75;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  ::selection{background:var(--consist);color:#0a0f1a;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px 120px;}
+
+  header{padding:64px 24px 36px;text-align:center;position:relative;overflow:hidden;}
+  header::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 18% 15%, rgba(56,189,248,0.14), transparent 45%),
+               radial-gradient(circle at 85% 5%, rgba(167,139,250,0.08), transparent 45%);
+    pointer-events:none;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:var(--consist);
+    text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;
+    background:rgba(56,189,248,0.08);border:1px solid var(--consist-dim);padding:6px 14px;border-radius:999px;}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--consist);box-shadow:0 0 8px var(--consist);animation:blink 1.6s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+  h1.title{font-size:clamp(40px,7.5vw,72px);margin:20px 0 8px;font-weight:700;letter-spacing:-0.02em;}
+  header p.sub{color:var(--muted);font-size:17px;max-width:660px;margin:0 auto;line-height:1.55;}
+
+  section{margin-top:68px;}
+  .section-head{margin-bottom:26px;}
+  .section-head .tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--consist);letter-spacing:.12em;text-transform:uppercase;}
+  .section-head h2{font-family:'Space Grotesk',sans-serif;font-size:28px;margin:6px 0 10px;}
+  .section-head p{color:var(--muted);font-size:15.5px;line-height:1.6;max-width:720px;}
+
+  .panel{background:linear-gradient(180deg, var(--panel), var(--panel-light));border:1px solid var(--line);border-radius:16px;padding:28px;}
+
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;padding:10px 18px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel-light);color:var(--text);cursor:pointer;transition:all .15s ease;}
+  button:hover{border-color:var(--consist);transform:translateY(-1px);}
+  button.primary{background:var(--consist);border-color:var(--consist);color:#0a0f1a;}
+  button.primary:hover{filter:brightness(1.1);}
+  button.toggle-btn.active{background:var(--consist);border-color:var(--consist);color:#0a0f1a;}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center;}
+  input[type=range]{width:100%;accent-color:var(--consist);}
+  .slider-block{margin-bottom:16px;}
+  .slider-block label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px;}
+
+  /* RECAP */
+  .analogy{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:700px){.analogy{grid-template-columns:1fr;}}
+  .analogy-card{border-radius:14px;padding:16px 18px;font-size:13.5px;line-height:1.55;}
+  .analogy-card.strong{background:rgba(56,189,248,.08);border:1px solid var(--consist-dim);}
+  .analogy-card.eventual{background:rgba(255,176,32,.06);border:1px solid var(--warn-dim);}
+  .analogy-card b{display:block;font-family:'Space Grotesk',sans-serif;font-size:14px;margin-bottom:4px;}
+  .analogy-card.strong b{color:var(--consist);}
+  .analogy-card.eventual b{color:var(--warn);}
+
+  /* GAME 1: REPLICA LAG RACE */
+  .mode-row{display:flex;gap:10px;justify-content:center;margin-bottom:20px;}
+  .replica-scene{display:flex;flex-direction:column;align-items:center;gap:16px;}
+  .primary-box{background:var(--panel-light);border:1px solid var(--accent);border-radius:12px;padding:14px 22px;
+    font-family:'JetBrains Mono',monospace;font-size:13px;text-align:center;}
+  .primary-box .val{font-size:18px;font-weight:700;color:var(--consist);margin-top:4px;}
+  .replica-row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;position:relative;}
+  .replica-node{width:120px;background:var(--panel-light);border:1px solid var(--line);border-radius:12px;
+    padding:14px 10px;text-align:center;transition:border-color .3s ease;}
+  .replica-node .name{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);margin-bottom:6px;}
+  .replica-node .val{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;}
+  .replica-node button{width:100%;font-size:11px;padding:6px 8px;margin-top:8px;}
+  .replica-node.fresh{border-color:var(--up);}
+  .replica-node.stale{border-color:var(--warn);}
+  .particle{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--consist);box-shadow:0 0 8px var(--consist);
+    top:-30px;transition:top 0.9s linear, left 0.9s linear;}
+  .read-toast{margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;min-height:14px;}
+  .read-toast.fresh{color:var(--up);}
+  .read-toast.stale{color:var(--warn);}
+  .confirm-tag{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);margin-top:6px;min-height:16px;}
+
+  /* GAME 2: CAP PARTITION */
+  .cluster-row{display:flex;justify-content:center;align-items:center;gap:0;margin:20px 0;}
+  .node-group{display:flex;gap:10px;padding:16px;border-radius:14px;background:var(--panel-light);border:1px solid var(--line);transition:transform .4s ease;}
+  .node-group.side-a{margin-right:0;}
+  .node-group.side-b{margin-left:0;}
+  .node-group.split-a{transform:translateX(-22px);}
+  .node-group.split-b{transform:translateX(22px);}
+  .cap-node{width:50px;height:50px;border-radius:10px;background:var(--panel);border:1px solid var(--up-dim);
+    display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .cluster-link{width:60px;height:3px;background:var(--line);transition:background .3s ease;}
+  .cluster-link.cracked{background:repeating-linear-gradient(90deg, var(--down) 0 6px, transparent 6px 12px);}
+  .side-labels{display:flex;justify-content:center;gap:150px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .cap-values{display:flex;justify-content:center;gap:60px;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:14px;}
+  .cap-value-box{text-align:center;}
+  .cap-value-box .v{font-size:20px;font-weight:700;margin-top:4px;}
+  .cap-status{margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;text-align:center;min-height:16px;}
+  .cap-status.rejected{color:var(--down);}
+  .cap-status.accepted{color:var(--up);}
+  .conflict-banner{margin-top:16px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;padding:12px;border-radius:10px;
+    background:rgba(255,176,32,.1);border:1px solid var(--warn-dim);color:var(--warn);display:none;}
+  .conflict-banner.show{display:block;}
+
+  /* GAME 3: READ YOUR WRITES */
+  .feed-box{background:var(--panel-light);border:1px solid var(--line);border-radius:12px;padding:14px 16px;max-width:360px;margin:0 auto;min-height:90px;}
+  .feed-item{font-family:'JetBrains Mono',monospace;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line);}
+  .feed-item:last-child{border-bottom:none;}
+  .feed-item.new{color:var(--up);}
+  .narrative-log{margin-top:16px;background:#060a12;border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+    height:100px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+  .narrative-log div{margin-bottom:4px;}
+  .narrative-log .err{color:var(--down);}
+  .narrative-log .ok{color:var(--up);}
+  .narrative-log .info{color:var(--consist);}
+
+  /* GAME 4: QUORUM TUNER */
+  .quorum-formula{text-align:center;font-family:'JetBrains Mono',monospace;font-size:16px;margin-bottom:16px;padding:12px;border-radius:10px;
+    background:var(--panel-light);border:1px solid var(--line);}
+  .quorum-formula.pass{color:var(--up);}
+  .quorum-formula.fail{color:var(--down);}
+  .qnode-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:18px 0;}
+  .qnode{width:56px;height:56px;border-radius:10px;background:var(--panel-light);border:2px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:18px;position:relative;transition:all .25s ease;}
+  .qnode .badge{position:absolute;bottom:-18px;font-size:9px;font-family:'JetBrains Mono',monospace;}
+  .qnode.written{border-color:var(--consist);background:rgba(56,189,248,.15);}
+  .qnode.read{box-shadow:inset 0 0 0 2px var(--up);}
+  .qnode.read.written{background:rgba(53,211,153,.2);border-color:var(--up);}
+  .quorum-log{margin-top:16px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--muted);min-height:18px;}
+  .quorum-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;}
+  .quorum-stat{background:var(--panel-light);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;}
+  .quorum-stat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .quorum-stat .v{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;margin-top:3px;color:var(--consist);}
+
+  /* QUIZ */
+  .quiz-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px;}
+  .quiz-q{font-weight:600;margin-bottom:12px;}
+  .quiz-opts{display:grid;gap:8px;}
+  .quiz-opt{border:1px solid var(--line);background:var(--panel-light);padding:10px 14px;border-radius:8px;cursor:pointer;font-size:14px;transition:all .15s ease;}
+  .quiz-opt:hover{border-color:var(--consist);}
+  .quiz-opt.correct{border-color:var(--up);background:rgba(53,211,153,.1);color:var(--up);}
+  .quiz-opt.wrong{border-color:var(--down);background:rgba(255,84,112,.1);color:var(--down);}
+  .score-banner{text-align:center;font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--consist);
+    background:rgba(56,189,248,.08);border:1px solid var(--consist-dim);border-radius:12px;padding:16px;margin-bottom:20px;}
+
+  footer{text-align:center;margin-top:80px;color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="eyebrow"><span class="dot"></span>System Design Lab · Characteristic 5 of 8</span>
+  <h1 class="title display">Consistency</h1>
+  <p class="sub">You have multiple copies of the same data. When one changes, does everyone see the new value right away — or does it take a moment to catch up?</p>
+</header>
+
+<div class="wrap">
+
+  <!-- RECAP -->
+  <section>
+    <div class="section-head">
+      <div class="tag">00 · Two philosophies</div>
+      <h2 class="display">Strong vs. Eventual</h2>
+      <p>Almost every consistency decision in system design comes down to picking a point between these two extremes.</p>
+    </div>
+    <div class="analogy">
+      <div class="analogy-card strong"><b>Strong Consistency</b>A single shared notebook. Everyone reads from the same page — the moment something is written, every reader instantly sees it. Safer, but slower to write to.</div>
+      <div class="analogy-card eventual"><b>Eventual Consistency</b>A rumor spreading through a room. Everyone eventually hears the same story — but for a little while, some people are still repeating the old version.</div>
+    </div>
+  </section>
+
+  <!-- GAME 1: REPLICA LAG RACE -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 1 · Replica Lag Race</div>
+      <h2 class="display">Write once. Read from anywhere. See what happens.</h2>
+      <p>Pick a mode, make a write, then immediately try reading from each replica. In Eventual mode, some reads will catch a stale value — that's the "inconsistency window" in action.</p>
+    </div>
+    <div class="panel">
+      <div class="mode-row">
+        <button class="toggle-btn active" id="strongModeBtn">🔒 Strong (synchronous)</button>
+        <button class="toggle-btn" id="eventualModeBtn">🌊 Eventual (asynchronous)</button>
+      </div>
+      <div class="replica-scene">
+        <div class="primary-box">PRIMARY<div class="val" id="primaryVal">v0: "Hello"</div><div class="confirm-tag" id="confirmTag"></div></div>
+        <div class="replica-row" id="replicaRow">
+          <div class="replica-node" id="replica-0"><div class="name">replica-1</div><div class="val">v0: "Hello"</div><button class="read-btn" data-id="0">👁 Read</button><div class="read-toast" id="toast-0"></div></div>
+          <div class="replica-node" id="replica-1"><div class="name">replica-2</div><div class="val">v0: "Hello"</div><button class="read-btn" data-id="1">👁 Read</button><div class="read-toast" id="toast-1"></div></div>
+          <div class="replica-node" id="replica-2"><div class="name">replica-3</div><div class="val">v0: "Hello"</div><button class="read-btn" data-id="2">👁 Read</button><div class="read-toast" id="toast-2"></div></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="writeBtn">✍️ Write new value</button>
+        <button id="resetReplicaBtn">↻ Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME 2: CAP PARTITION -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 2 · CAP Split-Brain</div>
+      <h2 class="display">The network just split. Now what?</h2>
+      <p>Two data centers can no longer talk to each other. Pick a strategy, then try writing to both sides during the outage.</p>
+    </div>
+    <div class="panel">
+      <div class="mode-row">
+        <button class="toggle-btn active" id="cpModeBtn">🔒 CP — refuse writes without quorum</button>
+        <button class="toggle-btn" id="apModeBtn">🌊 AP — accept writes on both sides</button>
+      </div>
+      <div class="side-labels"><span>SIDE A (majority)</span><span>SIDE B (minority)</span></div>
+      <div class="cluster-row">
+        <div class="node-group side-a" id="sideAGroup">
+          <div class="cap-node">🖥️</div><div class="cap-node">🖥️</div>
+        </div>
+        <div class="cluster-link" id="clusterLink"></div>
+        <div class="node-group side-b" id="sideBGroup">
+          <div class="cap-node">🖥️</div>
+        </div>
+      </div>
+      <div class="cap-values">
+        <div class="cap-value-box">Side A value<div class="v" id="sideAVal">v0</div></div>
+        <div class="cap-value-box">Side B value<div class="v" id="sideBVal">v0</div></div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="partitionBtn">⚡ Simulate network partition</button>
+      </div>
+      <div class="btn-row" id="writeButtonsRow" style="display:none;">
+        <button id="writeABtn">✍️ Write "vA" to Side A</button>
+        <button id="writeBBtn">✍️ Write "vB" to Side B</button>
+        <button id="healBtn">🔧 Heal partition</button>
+      </div>
+      <div class="cap-status" id="capStatus"></div>
+      <div class="conflict-banner" id="conflictBanner"></div>
+    </div>
+  </section>
+
+  <!-- GAME 3: READ YOUR WRITES -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 3 · The "Where's My Post?!" Bug</div>
+      <h2 class="display">Read-your-writes, dramatized</h2>
+      <p>You post a comment. Your app immediately reloads the feed. If it happens to read from a replica that hasn't caught up yet... you see your own post vanish.</p>
+    </div>
+    <div class="panel">
+      <div class="feed-box" id="feedBox">
+        <div class="feed-item">Alex: great writeup!</div>
+        <div class="feed-item">Sam: totally agree</div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="postBtn">📝 Post a comment</button>
+        <button id="refreshBtn" disabled>🔄 Refresh feed (random replica)</button>
+        <button id="resetNarrativeBtn">↻ Reset</button>
+      </div>
+      <div class="narrative-log" id="narrativeLog"></div>
+    </div>
+  </section>
+
+  <!-- GAME 4: QUORUM TUNER -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 4 · Quorum Tuner</div>
+      <h2 class="display">The W + R > N trick</h2>
+      <p>N total replicas. Write to W of them. Read from R of them. If W + R is bigger than N, at least one node you read from is guaranteed to have the latest write — mathematically, not just luck.</p>
+    </div>
+    <div class="panel">
+      <div class="slider-block">
+        <label>N — total replicas: <span id="nQVal" class="mono">5</span></label>
+        <input type="range" id="nQSlider" min="3" max="7" value="5">
+      </div>
+      <div class="slider-block">
+        <label>W — write quorum: <span id="wQVal" class="mono">3</span></label>
+        <input type="range" id="wQSlider" min="1" max="7" value="3">
+      </div>
+      <div class="slider-block">
+        <label>R — read quorum: <span id="rQVal" class="mono">2</span></label>
+        <input type="range" id="rQSlider" min="1" max="7" value="2">
+      </div>
+      <div class="quorum-formula" id="quorumFormula">W + R = 5 &nbsp;|&nbsp; N = 5 &nbsp;→&nbsp; overlap NOT guaranteed</div>
+      <div class="qnode-row" id="qnodeRow"></div>
+      <div class="btn-row">
+        <button class="primary" id="quorumTrialBtn">🎲 Run 20 write+read trials</button>
+        <button id="resetQuorumBtn">↻ Reset</button>
+      </div>
+      <div class="quorum-log" id="quorumLog"></div>
+      <div class="quorum-stats">
+        <div class="quorum-stat"><div class="k">Fresh reads</div><div class="v" id="freshReadsVal">0 / 0</div></div>
+        <div class="quorum-stat"><div class="k">Empirical guarantee rate</div><div class="v" id="guaranteeRateVal">—</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Final Challenge</div>
+      <h2 class="display">Score the room</h2>
+      <p>Cold-call these — track the class score as you go.</p>
+    </div>
+    <div class="score-banner">Score: <span id="quizScore">0</span> / 4</div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q1. In Eventual mode in Game 1, why did some replicas show the old value right after a write?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Because the write failed silently</div>
+        <div class="quiz-opt" data-correct="true">Because the write acknowledged immediately, before replication to every node finished</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q2. In the CAP game, what does CP mode do to Side B during the partition?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="true">It refuses writes on the minority side rather than risk an inconsistent value</div>
+        <div class="quiz-opt" data-correct="false">It automatically shuts down Side A instead</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q3. In the "Where's My Post?" game, what actually caused the comment to disappear?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">The comment was deleted by another user</div>
+        <div class="quiz-opt" data-correct="true">The refresh happened to read from a replica that hadn't received the new write yet</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q4. With N=5, W=3, R=2 in the Quorum Tuner, is a fresh read guaranteed?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Yes — W + R = 5 which equals N, so it's guaranteed</div>
+        <div class="quiz-opt" data-correct="true">No — W + R must be strictly greater than N; here it's equal, so overlap isn't guaranteed</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>consistency.model — up next: fault tolerance →</footer>
+
+<script>
+/* ============ GAME 1: REPLICA LAG RACE ============ */
+const strongModeBtn = document.getElementById('strongModeBtn');
+const eventualModeBtn = document.getElementById('eventualModeBtn');
+const writeBtn = document.getElementById('writeBtn');
+const resetReplicaBtn = document.getElementById('resetReplicaBtn');
+const primaryVal = document.getElementById('primaryVal');
+const confirmTag = document.getElementById('confirmTag');
+const replicaRow = document.getElementById('replicaRow');
+
+let mode = 'strong';
+let version = 0;
+let replicaVersions = [0,0,0];
+
+strongModeBtn.addEventListener('click', ()=>{ mode='strong'; strongModeBtn.classList.add('active'); eventualModeBtn.classList.remove('active'); });
+eventualModeBtn.addEventListener('click', ()=>{ mode='eventual'; eventualModeBtn.classList.add('active'); strongModeBtn.classList.remove('active'); });
+
+function replicaLabel(v){ return 'v'+v+': "Hello' + (v>0?(' '+'v'.repeat(0)+Array(v+1).join('!')):'') + '"'; }
+
+function updateReplicaDisplay(i){
+  const node = document.getElementById('replica-'+i);
+  const valEl = node.querySelector('.val');
+  valEl.textContent = replicaLabel(replicaVersions[i]);
+  node.classList.toggle('fresh', replicaVersions[i]===version);
+  node.classList.toggle('stale', replicaVersions[i]!==version);
+}
+
+function launchParticle(targetIndex, duration){
+  const targetNode = document.getElementById('replica-'+targetIndex);
+  const p = document.createElement('div');
+  p.className = 'particle';
+  const rowRect = replicaRow.getBoundingClientRect();
+  const targetRect = targetNode.getBoundingClientRect();
+  p.style.left = (rowRect.width/2) + 'px';
+  p.style.top = '-30px';
+  replicaRow.appendChild(p);
+  p.style.transition = 'top '+duration+'ms linear, left '+duration+'ms linear';
+  requestAnimationFrame(()=>{
+    p.style.left = (targetRect.left - rowRect.left + targetRect.width/2 - 5) + 'px';
+    p.style.top = '10px';
+  });
+  setTimeout(()=>p.remove(), duration+100);
+}
+
+writeBtn.addEventListener('click', () => {
+  writeBtn.disabled = true;
+  version++;
+  primaryVal.textContent = replicaLabel(version);
+
+  if(mode === 'strong'){
+    confirmTag.textContent = '⏳ writing to all replicas before confirming...';
+    const delays = [900,900,900];
+    delays.forEach((d,i)=>launchParticle(i,d));
+    setTimeout(()=>{
+      delays.forEach((d,i)=>{ replicaVersions[i]=version; updateReplicaDisplay(i); });
+      confirmTag.textContent = '✔ Write confirmed — ALL replicas updated together';
+      writeBtn.disabled = false;
+    }, 950);
+  } else {
+    confirmTag.textContent = '✔ Write confirmed instantly (replication happening in background...)';
+    const delays = [500,1300,2200];
+    delays.forEach((d,i)=>{
+      launchParticle(i,d);
+      setTimeout(()=>{ replicaVersions[i]=version; updateReplicaDisplay(i); }, d+50);
+    });
+    setTimeout(()=>{ writeBtn.disabled=false; }, 2300);
+  }
+});
+
+document.querySelectorAll('.read-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const i = parseInt(btn.dataset.id);
+    const toast = document.getElementById('toast-'+i);
+    const isFresh = replicaVersions[i] === version;
+    toast.textContent = isFresh ? '✔ fresh: '+replicaLabel(replicaVersions[i]) : '⚠ STALE: '+replicaLabel(replicaVersions[i]);
+    toast.className = 'read-toast ' + (isFresh?'fresh':'stale');
+  });
+});
+
+resetReplicaBtn.addEventListener('click', ()=>{
+  version=0; replicaVersions=[0,0,0];
+  primaryVal.textContent = replicaLabel(0);
+  confirmTag.textContent='';
+  for(let i=0;i<3;i++){ updateReplicaDisplay(i); document.getElementById('toast-'+i).textContent=''; }
+});
+
+/* ============ GAME 2: CAP PARTITION ============ */
+const cpModeBtn = document.getElementById('cpModeBtn');
+const apModeBtn = document.getElementById('apModeBtn');
+const partitionBtn = document.getElementById('partitionBtn');
+const writeButtonsRow = document.getElementById('writeButtonsRow');
+const writeABtn = document.getElementById('writeABtn');
+const writeBBtn = document.getElementById('writeBBtn');
+const healBtn = document.getElementById('healBtn');
+const sideAGroup = document.getElementById('sideAGroup');
+const sideBGroup = document.getElementById('sideBGroup');
+const clusterLink = document.getElementById('clusterLink');
+const sideAVal = document.getElementById('sideAVal');
+const sideBVal = document.getElementById('sideBVal');
+const capStatus = document.getElementById('capStatus');
+const conflictBanner = document.getElementById('conflictBanner');
+
+let capMode = 'CP';
+let partitioned = false;
+let valA = 'v0', valB = 'v0';
+
+cpModeBtn.addEventListener('click', ()=>{ capMode='CP'; cpModeBtn.classList.add('active'); apModeBtn.classList.remove('active'); });
+apModeBtn.addEventListener('click', ()=>{ capMode='AP'; apModeBtn.classList.add('active'); cpModeBtn.classList.remove('active'); });
+
+partitionBtn.addEventListener('click', () => {
+  partitioned = true;
+  sideAGroup.classList.add('split-a');
+  sideBGroup.classList.add('split-b');
+  clusterLink.classList.add('cracked');
+  writeButtonsRow.style.display = 'flex';
+  partitionBtn.disabled = true;
+  capStatus.textContent = '⚡ Network partitioned — Side A and Side B can no longer communicate.';
+  capStatus.className = 'cap-status';
+});
+
+function resolveWrite(side, newVal){
+  if(!partitioned){ return; }
+  if(capMode === 'CP' && side === 'B'){
+    capStatus.textContent = '🚫 Side B rejected the write — minority partition, no quorum, refusing to risk inconsistency.';
+    capStatus.className = 'cap-status rejected';
+    return;
+  }
+  if(side==='A'){ valA = newVal; sideAVal.textContent = valA; }
+  else { valB = newVal; sideBVal.textContent = valB; }
+  capStatus.textContent = '✔ Side '+side+' accepted the write.' + (capMode==='AP' ? ' (Side unaware of the other — divergence risk!)' : '');
+  capStatus.className = 'cap-status accepted';
+}
+writeABtn.addEventListener('click', ()=>resolveWrite('A','vA'));
+writeBBtn.addEventListener('click', ()=>resolveWrite('B','vB'));
+
+healBtn.addEventListener('click', () => {
+  partitioned = false;
+  sideAGroup.classList.remove('split-a');
+  sideBGroup.classList.remove('split-b');
+  clusterLink.classList.remove('cracked');
+  writeButtonsRow.style.display = 'none';
+  partitionBtn.disabled = false;
+  if(valA !== valB){
+    conflictBanner.textContent = '⚠ CONFLICT: Side A = "'+valA+'", Side B = "'+valB+'" — both were accepted independently and now disagree. Needs a merge/resolution strategy (e.g. last-write-wins).';
+    conflictBanner.classList.add('show');
+  } else {
+    conflictBanner.textContent = '✔ No conflict — partition healed cleanly.';
+    conflictBanner.classList.add('show');
+  }
+  capStatus.textContent = '🔧 Partition healed.';
+  capStatus.className = 'cap-status';
+});
+
+/* ============ GAME 3: READ YOUR WRITES ============ */
+const feedBox = document.getElementById('feedBox');
+const postBtn = document.getElementById('postBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+const resetNarrativeBtn = document.getElementById('resetNarrativeBtn');
+const narrativeLog = document.getElementById('narrativeLog');
+
+let commentPosted = false;
+let replicaCaughtUp = false;
+
+function nlog(msg, cls){
+  const d = document.createElement('div');
+  d.textContent = msg;
+  if(cls) d.className = cls;
+  narrativeLog.prepend(d);
+}
+
+postBtn.addEventListener('click', () => {
+  commentPosted = true;
+  replicaCaughtUp = false;
+  postBtn.disabled = true;
+  nlog('📝 You posted: "This helped me a lot, thanks!"', 'info');
+  nlog('✔ Write acknowledged by primary', 'ok');
+  refreshBtn.disabled = false;
+  setTimeout(()=>{
+    replicaCaughtUp = true;
+    nlog('🔁 (behind the scenes) replicas have now caught up', 'info');
+  }, 3200);
+});
+
+refreshBtn.addEventListener('click', () => {
+  const hitStaleReplica = !replicaCaughtUp && Math.random() < 0.85;
+  nlog('🔄 Refreshing feed... routed to a random replica', 'info');
+  feedBox.innerHTML = '<div class="feed-item">Alex: great writeup!</div><div class="feed-item">Sam: totally agree</div>';
+  if(commentPosted && !hitStaleReplica){
+    const mine = document.createElement('div');
+    mine.className = 'feed-item new';
+    mine.textContent = 'You: "This helped me a lot, thanks!"';
+    feedBox.appendChild(mine);
+    nlog('✔ Landed on an up-to-date replica — your comment is there!', 'ok');
+  } else if(commentPosted){
+    nlog('😱 Landed on a lagging replica — Wait, where is my comment?!', 'err');
+  }
+});
+
+resetNarrativeBtn.addEventListener('click', () => {
+  commentPosted=false; replicaCaughtUp=false;
+  postBtn.disabled=false; refreshBtn.disabled=true;
+  narrativeLog.innerHTML='';
+  feedBox.innerHTML = '<div class="feed-item">Alex: great writeup!</div><div class="feed-item">Sam: totally agree</div>';
+});
+
+/* ============ GAME 4: QUORUM TUNER ============ */
+const nQSlider = document.getElementById('nQSlider');
+const wQSlider = document.getElementById('wQSlider');
+const rQSlider = document.getElementById('rQSlider');
+const nQVal = document.getElementById('nQVal');
+const wQVal = document.getElementById('wQVal');
+const rQVal = document.getElementById('rQVal');
+const quorumFormula = document.getElementById('quorumFormula');
+const qnodeRow = document.getElementById('qnodeRow');
+const quorumTrialBtn = document.getElementById('quorumTrialBtn');
+const resetQuorumBtn = document.getElementById('resetQuorumBtn');
+const quorumLog = document.getElementById('quorumLog');
+const freshReadsVal = document.getElementById('freshReadsVal');
+const guaranteeRateVal = document.getElementById('guaranteeRateVal');
+
+let freshCount = 0, totalTrialsRun = 0;
+
+function clampQSliders(){
+  const n = parseInt(nQSlider.value);
+  if(parseInt(wQSlider.value) > n) wQSlider.value = n;
+  if(parseInt(rQSlider.value) > n) rQSlider.value = n;
+  wQSlider.max = n; rQSlider.max = n;
+}
+
+function buildQNodes(){
+  const n = parseInt(nQSlider.value);
+  qnodeRow.innerHTML = '';
+  for(let i=0;i<n;i++){
+    const el = document.createElement('div');
+    el.className = 'qnode';
+    el.id = 'qn-'+i;
+    el.textContent = '💾';
+    qnodeRow.appendChild(el);
+  }
+}
+
+function updateFormula(){
+  const n = parseInt(nQSlider.value), w = parseInt(wQSlider.value), r = parseInt(rQSlider.value);
+  const guaranteed = (w+r) > n;
+  quorumFormula.textContent = 'W + R = ' + (w+r) + '  |  N = ' + n + '  →  ' + (guaranteed ? 'overlap GUARANTEED' : 'overlap NOT guaranteed');
+  quorumFormula.className = 'quorum-formula ' + (guaranteed?'pass':'fail');
+}
+
+[nQSlider,wQSlider,rQSlider].forEach(s=>{
+  s.addEventListener('input', ()=>{
+    nQVal.textContent = nQSlider.value; wQVal.textContent = wQSlider.value; rQVal.textContent = rQSlider.value;
+    clampQSliders();
+    buildQNodes();
+    updateFormula();
+    resetQuorumStats();
+  });
+});
+
+function resetQuorumStats(){
+  freshCount=0; totalTrialsRun=0;
+  freshReadsVal.textContent = '0 / 0';
+  guaranteeRateVal.textContent = '—';
+  quorumLog.textContent='';
+  Array.from(qnodeRow.children).forEach(n=>n.classList.remove('written','read'));
+}
+resetQuorumBtn.addEventListener('click', resetQuorumStats);
+
+function pickRandomIndices(n, k){
+  const arr = Array.from({length:n}, (_,i)=>i);
+  for(let i=arr.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+  return arr.slice(0,k);
+}
+
+quorumTrialBtn.addEventListener('click', () => {
+  quorumTrialBtn.disabled = true;
+  const n = parseInt(nQSlider.value), w = parseInt(wQSlider.value), r = parseInt(rQSlider.value);
+  let trial = 0;
+  function runTrial(){
+    if(trial >= 20){ quorumTrialBtn.disabled=false; return; }
+    Array.from(qnodeRow.children).forEach(el=>el.classList.remove('written','read'));
+    const writeSet = pickRandomIndices(n,w);
+    writeSet.forEach(i=>document.getElementById('qn-'+i).classList.add('written'));
+    setTimeout(()=>{
+      const readSet = pickRandomIndices(n,r);
+      readSet.forEach(i=>document.getElementById('qn-'+i).classList.add('read'));
+      const overlap = readSet.some(i=>writeSet.includes(i));
+      totalTrialsRun++;
+      if(overlap) freshCount++;
+      freshReadsVal.textContent = freshCount + ' / ' + totalTrialsRun;
+      guaranteeRateVal.textContent = ((freshCount/totalTrialsRun)*100).toFixed(0)+'%';
+      quorumLog.textContent = 'Trial ' + totalTrialsRun + '/20 — ' + (overlap ? '✔ read saw the latest write' : '✘ read missed the latest write (stale)');
+      trial++;
+      setTimeout(runTrial, 320);
+    }, 350);
+  }
+  runTrial();
+});
+
+buildQNodes();
+updateFormula();
+
+/* ============ SCORED QUIZ ============ */
+let quizScoreCount = 0;
+const quizScoreEl = document.getElementById('quizScore');
+document.querySelectorAll('.quiz-card').forEach(card => {
+  const opts = card.querySelectorAll('.quiz-opt');
+  opts.forEach(opt => {
+    opt.addEventListener('click', () => {
+      if(card.dataset.answered) return;
+      card.dataset.answered = 'true';
+      opts.forEach(o => o.classList.add(o.dataset.correct === 'true' ? 'correct' : 'wrong'));
+      if(opt.dataset.correct === 'true'){
+        quizScoreCount++;
+        quizScoreEl.textContent = quizScoreCount;
+      }
+    });
+  });
+});
+</script>
+</body>
+</html>

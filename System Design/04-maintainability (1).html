@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Maintainability — System Design Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1a; --panel:#121a2c; --panel-light:#182234; --line:#243050;
+    --text:#e8edf5; --muted:#8b98b3;
+    --up:#35d399; --up-dim:#1d5c46;
+    --down:#ff5470; --down-dim:#6b2532;
+    --warn:#ffb020; --warn-dim:#7a5713;
+    --accent:#4c8dff;
+    --maint:#facc15; --maint-dim:#6b5b12;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  ::selection{background:var(--maint);color:#0a0f1a;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px 120px;}
+
+  header{padding:64px 24px 36px;text-align:center;position:relative;overflow:hidden;}
+  header::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 18% 15%, rgba(250,204,21,0.12), transparent 45%),
+               radial-gradient(circle at 85% 5%, rgba(76,141,255,0.08), transparent 45%);
+    pointer-events:none;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:var(--maint);
+    text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;
+    background:rgba(250,204,21,0.08);border:1px solid var(--maint-dim);padding:6px 14px;border-radius:999px;}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--maint);box-shadow:0 0 8px var(--maint);animation:blink 1.6s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+  h1.title{font-size:clamp(40px,7.5vw,72px);margin:20px 0 8px;font-weight:700;letter-spacing:-0.02em;}
+  header p.sub{color:var(--muted);font-size:17px;max-width:640px;margin:0 auto;line-height:1.55;}
+
+  section{margin-top:68px;}
+  .section-head{margin-bottom:26px;}
+  .section-head .tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--maint);letter-spacing:.12em;text-transform:uppercase;}
+  .section-head h2{font-family:'Space Grotesk',sans-serif;font-size:28px;margin:6px 0 10px;}
+  .section-head p{color:var(--muted);font-size:15.5px;line-height:1.6;max-width:720px;}
+
+  .panel{background:linear-gradient(180deg, var(--panel), var(--panel-light));border:1px solid var(--line);border-radius:16px;padding:28px;}
+
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;padding:10px 18px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel-light);color:var(--text);cursor:pointer;transition:all .15s ease;}
+  button:hover{border-color:var(--maint);transform:translateY(-1px);}
+  button.primary{background:var(--maint);border-color:var(--maint);color:#0a0f1a;}
+  button.primary:hover{filter:brightness(1.1);}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center;}
+  input[type=range]{width:100%;accent-color:var(--maint);}
+  .slider-block{margin-bottom:16px;}
+  .slider-block label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px;}
+
+  /* COMPONENT CARDS */
+  .cause-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+  .cause-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;transition:transform .15s ease, border-color .15s ease;}
+  .cause-card:hover{transform:translateY(-3px);border-color:var(--maint);}
+  .cause-card .icon{font-size:26px;}
+  .cause-card h3{font-size:15px;margin:10px 0 4px;font-family:'Space Grotesk',sans-serif;}
+  .cause-card p{font-size:13px;color:var(--muted);line-height:1.5;margin:0;}
+
+  /* BLAST RADIUS GAME */
+  .blast-split{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:800px){.blast-split{grid-template-columns:1fr;}}
+  .blast-side{border-radius:14px;padding:18px;}
+  .blast-side.mono{background:rgba(255,84,112,0.05);border:1px solid var(--down-dim);}
+  .blast-side.mod{background:rgba(53,211,153,0.05);border:1px solid var(--up-dim);}
+  .blast-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;margin-bottom:12px;text-align:center;}
+  .monolith-box{
+    border-radius:14px;padding:20px 14px;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;
+    background:
+      repeating-linear-gradient(45deg, rgba(255,84,112,0.10) 0 2px, transparent 2px 14px),
+      repeating-linear-gradient(-45deg, rgba(255,84,112,0.08) 0 2px, transparent 2px 18px),
+      var(--panel-light);
+    border:2px dashed var(--down-dim);
+  }
+  .hub-wrap{display:flex;flex-direction:column;align-items:center;}
+  .hub{background:var(--panel-light);border:1px solid var(--accent);border-radius:10px;padding:8px 16px;font-family:'JetBrains Mono',monospace;font-size:11.5px;margin-bottom:4px;}
+  .hub-line{width:2px;height:20px;background:var(--line);}
+  .modular-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--panel-light);border:1px solid var(--line);border-radius:14px;padding:20px 14px;}
+  .feat-box{width:64px;height:64px;border-radius:12px;background:var(--panel-light);border:2px solid var(--up-dim);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:20px;transition:border-color .25s ease, background .25s ease;}
+  .feat-box .lbl{font-family:'JetBrains Mono',monospace;font-size:8.5px;color:var(--muted);margin-top:2px;}
+  .feat-box.fail{border-color:var(--down);background:rgba(255,84,112,.18);animation:shakeF .3s;}
+  @keyframes shakeF{0%,100%{transform:translateX(0);}25%{transform:translateX(-4px);}75%{transform:translateX(4px);}}
+  .blast-result{margin-top:14px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;padding:10px;border-radius:8px;min-height:16px;}
+  .blast-result.dead{background:rgba(255,84,112,.1);border:1px solid var(--down-dim);color:var(--down);}
+  .blast-result.saved{background:rgba(53,211,153,.1);border:1px solid var(--up-dim);color:var(--up);}
+
+  /* TECH DEBT SNOWBALL */
+  .debt-layout{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:center;}
+  @media(max-width:800px){.debt-layout{grid-template-columns:1fr;}}
+  .velocity-chart{display:flex;align-items:flex-end;gap:14px;height:160px;justify-content:center;}
+  .vbar-col{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .vbar{width:34px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--up),var(--up-dim));transition:height .5s ease, background .5s ease;}
+  .vbar-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);}
+  .snowball-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:160px;}
+  .snowball{border-radius:50%;background:radial-gradient(circle at 35% 30%, #fff9db, var(--maint) 70%);
+    display:flex;align-items:center;justify-content:center;font-size:20px;transition:width .5s ease, height .5s ease;}
+  .debt-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;}
+  .debt-stat{background:var(--panel-light);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;}
+  .debt-stat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .debt-stat .v{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;margin-top:3px;}
+  .debt-warning{margin-top:14px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--warn);
+    background:rgba(255,176,32,.08);border:1px solid var(--warn-dim);border-radius:8px;padding:10px;display:none;}
+  .debt-warning.show{display:block;}
+
+  /* OBSERVABILITY SHOWDOWN */
+  .obs-split{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:800px){.obs-split{grid-template-columns:1fr;}}
+  .obs-side{border-radius:14px;padding:18px;}
+  .obs-side.blind{background:rgba(255,84,112,0.05);border:1px solid var(--down-dim);}
+  .obs-side.lit{background:rgba(53,211,153,0.05);border:1px solid var(--up-dim);}
+  .obs-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;margin-bottom:10px;text-align:center;}
+  .obs-log{background:#060a12;border:1px solid var(--line);border-radius:10px;padding:10px 12px;height:120px;overflow-y:auto;
+    font-family:'JetBrains Mono',monospace;font-size:11.5px;}
+  .obs-log div{margin-bottom:4px;}
+  .obs-log .err{color:var(--down);}
+  .obs-log .ok{color:var(--up);}
+  .obs-log .info{color:var(--accent);}
+  .mini-graph{background:var(--panel-light);border:1px solid var(--line);border-radius:8px;padding:6px;margin-bottom:10px;}
+  .obs-bar-wrap{height:10px;background:var(--panel-light);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:10px;}
+  .obs-bar-fill{height:100%;width:0%;transition:width linear;}
+  .obs-bar-fill.blind{background:var(--down);}
+  .obs-bar-fill.lit{background:var(--up);}
+  .obs-time{text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;margin-top:8px;}
+
+  /* ONBOARDING RACE */
+  .race-track{position:relative;height:56px;background:var(--panel-light);border:1px solid var(--line);border-radius:10px;margin-bottom:22px;overflow:visible;}
+  .race-runner{position:absolute;top:50%;transform:translateY(-50%);left:2%;font-size:26px;transition:left 0.4s ease;}
+  .race-flag{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:22px;}
+  .race-label{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;}
+  .obstacle-note{position:absolute;top:-24px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warn);opacity:0;transition:opacity .3s ease;white-space:nowrap;}
+  .obstacle-note.show{opacity:1;}
+
+  /* QUIZ */
+  .quiz-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px;}
+  .quiz-q{font-weight:600;margin-bottom:12px;}
+  .quiz-opts{display:grid;gap:8px;}
+  .quiz-opt{border:1px solid var(--line);background:var(--panel-light);padding:10px 14px;border-radius:8px;cursor:pointer;font-size:14px;transition:all .15s ease;}
+  .quiz-opt:hover{border-color:var(--maint);}
+  .quiz-opt.correct{border-color:var(--up);background:rgba(53,211,153,.1);color:var(--up);}
+  .quiz-opt.wrong{border-color:var(--down);background:rgba(255,84,112,.1);color:var(--down);}
+  .score-banner{text-align:center;font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--maint);
+    background:rgba(250,204,21,.08);border:1px solid var(--maint-dim);border-radius:12px;padding:16px;margin-bottom:20px;}
+
+  footer{text-align:center;margin-top:80px;color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="eyebrow"><span class="dot"></span>System Design Lab · Characteristic 4 of 8</span>
+  <h1 class="title display">Maintainability</h1>
+  <p class="sub">Six months from now, someone who didn't write this code has to fix it, extend it, and keep it running at 3am. How easy have you made that?</p>
+</header>
+
+<div class="wrap">
+
+  <!-- COMPONENTS -->
+  <section>
+    <div class="section-head">
+      <div class="tag">00 · The three pillars</div>
+      <h2 class="display">What "maintainable" actually means</h2>
+      <p>It's not one thing — it's three separate qualities that all need attention.</p>
+    </div>
+    <div class="cause-grid">
+      <div class="cause-card"><div class="icon">🛠️</div><h3>Operability</h3><p>How easy is it to keep the system running smoothly day-to-day — monitoring, deploying, debugging?</p></div>
+      <div class="cause-card"><div class="icon">🧩</div><h3>Simplicity</h3><p>Can a newcomer understand a piece of it without holding the entire system in their head at once?</p></div>
+      <div class="cause-card"><div class="icon">🌱</div><h3>Evolvability</h3><p>Can you safely add a new feature next year without secretly breaking three old ones?</p></div>
+    </div>
+  </section>
+
+  <!-- GAME 1: BLAST RADIUS -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 1 · Blast Radius</div>
+      <h2 class="display">One change. How much breaks?</h2>
+      <p>Same change to the Payments logic, made in two different architectures. Watch what happens to the rest of the system.</p>
+    </div>
+    <div class="panel">
+      <div class="blast-split">
+        <div class="blast-side mono">
+          <div class="blast-title" style="color:var(--down);">🍝 Monolith — everything tangled together</div>
+          <div class="monolith-box" id="monolithBox">
+            <div class="feat-box" id="m-login">🔑<div class="lbl">login</div></div>
+            <div class="feat-box" id="m-payments">💳<div class="lbl">payments</div></div>
+            <div class="feat-box" id="m-search">🔍<div class="lbl">search</div></div>
+            <div class="feat-box" id="m-profile">👤<div class="lbl">profile</div></div>
+          </div>
+          <div class="blast-result" id="monoResult"></div>
+        </div>
+        <div class="blast-side mod">
+          <div class="blast-title" style="color:var(--up);">🧱 Modular — isolated services</div>
+          <div class="hub-wrap">
+            <div class="hub">🔌 API Gateway</div>
+            <div class="hub-line"></div>
+          </div>
+          <div class="modular-row">
+            <div class="feat-box" id="s-login" style="border-color:var(--up-dim);">🔑<div class="lbl">login</div></div>
+            <div class="feat-box" id="s-payments" style="border-color:var(--up-dim);">💳<div class="lbl">payments</div></div>
+            <div class="feat-box" id="s-search" style="border-color:var(--up-dim);">🔍<div class="lbl">search</div></div>
+            <div class="feat-box" id="s-profile" style="border-color:var(--up-dim);">👤<div class="lbl">profile</div></div>
+          </div>
+          <div class="blast-result" id="modResult"></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="blastBtn">🔧 Change the Payments logic in both</button>
+        <button id="resetBlastBtn">↻ Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME 2: TECH DEBT SNOWBALL -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 2 · Technical Debt Snowball</div>
+      <h2 class="display">Shortcuts today, molasses tomorrow</h2>
+      <p>Set how many shortcuts the team takes each sprint, then watch five sprints play out. Debt doesn't just sit there — it compounds and eats your delivery speed.</p>
+    </div>
+    <div class="panel">
+      <div class="slider-block">
+        <label>Shortcuts taken per sprint: <span id="shortcutVal" class="mono">3</span></label>
+        <input type="range" id="shortcutSlider" min="0" max="10" value="3">
+      </div>
+      <div class="debt-layout">
+        <div>
+          <div class="velocity-chart" id="velocityChart"></div>
+          <div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:6px;">feature delivery speed, sprint by sprint</div>
+        </div>
+        <div class="snowball-wrap">
+          <div class="snowball" id="snowball" style="width:40px;height:40px;">⛄</div>
+        </div>
+      </div>
+      <div class="debt-stats">
+        <div class="debt-stat"><div class="k">Sprint</div><div class="v" id="sprintVal">0 / 5</div></div>
+        <div class="debt-stat"><div class="k">Debt score</div><div class="v" id="debtScoreVal" style="color:var(--maint);">0</div></div>
+      </div>
+      <div class="debt-warning" id="debtWarning">⚠ The team is now spending more time fighting debt than shipping features.</div>
+      <div class="btn-row">
+        <button class="primary" id="simulateDebtBtn">▶ Simulate 5 sprints</button>
+        <button id="resetDebtBtn">↻ Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME 3: OBSERVABILITY SHOWDOWN -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 3 · Observability Showdown</div>
+      <h2 class="display">Same bug. One team is flying blind.</h2>
+      <p>A bug just hit production for both teams at once. Watch how long it takes each of them to find and fix it.</p>
+    </div>
+    <div class="panel">
+      <div class="btn-row" style="margin-top:0;margin-bottom:20px;">
+        <button class="primary" id="triggerBugBtn">🐛 Bug hits production!</button>
+        <button id="resetObsBtn">↻ Reset</button>
+      </div>
+      <div class="obs-split">
+        <div class="obs-side blind">
+          <div class="obs-title" style="color:var(--down);">🔦 No monitoring or logs</div>
+          <div class="obs-log" id="blindLog"></div>
+          <div class="obs-bar-wrap"><div class="obs-bar-fill blind" id="blindBar"></div></div>
+          <div class="obs-time" id="blindTime" style="color:var(--down);">—</div>
+        </div>
+        <div class="obs-side lit">
+          <div class="obs-title" style="color:var(--up);">📊 Dashboards, metrics & alerts</div>
+          <svg class="mini-graph" width="100%" height="46" viewBox="0 0 200 46" id="graphSvg">
+            <polyline id="graphLine" fill="none" stroke="#35d399" stroke-width="2" points="0,38 40,36 80,34 120,35 160,33 200,34"/>
+          </svg>
+          <div class="obs-log" id="litLog"></div>
+          <div class="obs-bar-wrap"><div class="obs-bar-fill lit" id="litBar"></div></div>
+          <div class="obs-time" id="litTime" style="color:var(--up);">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME 4: ONBOARDING RACE -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 4 · Onboarding Race</div>
+      <h2 class="display">How fast can a new hire ship their first fix?</h2>
+      <p>Same new developer, same skill level — one codebase has docs and clean structure, the other doesn't.</p>
+    </div>
+    <div class="panel">
+      <div class="race-label"><span>📗 Documented, modular codebase</span><span id="docDaysVal" class="mono">0 days</span></div>
+      <div class="race-track" id="docTrack">
+        <div class="race-runner" id="docRunner">🏃</div>
+        <div class="race-flag">🎉</div>
+      </div>
+      <div class="race-label"><span>📕 Undocumented, tangled codebase</span><span id="undocDaysVal" class="mono">0 days</span></div>
+      <div class="race-track" id="undocTrack">
+        <div class="race-runner" id="undocRunner">🏃</div>
+        <div class="race-flag">🎉</div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="startRaceBtn">🏁 Start onboarding</button>
+        <button id="resetRaceBtn">↻ Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Final Challenge</div>
+      <h2 class="display">Score the room</h2>
+      <p>Cold-call these — track the class score as you go.</p>
+    </div>
+    <div class="score-banner">Score: <span id="quizScore">0</span> / 4</div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q1. In the Blast Radius game, why did the monolith break 4 features from 1 change?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Because monoliths always have more bugs</div>
+        <div class="quiz-opt" data-correct="true">Because everything shares the same code and state with no isolation between features</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q2. What does "technical debt" cost a team over time, based on the snowball simulation?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Nothing, as long as tests still pass</div>
+        <div class="quiz-opt" data-correct="true">Delivery velocity — each sprint gets slower as shortcuts pile up and demand rework</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q3. Why did the "no monitoring" team take so much longer to fix the same bug?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="true">They had to guess and manually check each system one by one instead of seeing exactly where the problem was</div>
+        <div class="quiz-opt" data-correct="false">Their code was written in a slower language</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q4. What made the documented codebase faster to onboard onto in the race?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">It had fewer total features to learn</div>
+        <div class="quiz-opt" data-correct="true">Clear docs and modular structure meant less time stuck asking around for tribal knowledge</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>maintainability.model — up next: consistency →</footer>
+
+<script>
+/* ============ GAME 1: BLAST RADIUS ============ */
+const blastBtn = document.getElementById('blastBtn');
+const resetBlastBtn = document.getElementById('resetBlastBtn');
+const monoResult = document.getElementById('monoResult');
+const modResult = document.getElementById('modResult');
+const monoIds = ['m-payments','m-login','m-search','m-profile'];
+
+function resetBlast(){
+  monoIds.forEach(id=>document.getElementById(id).classList.remove('fail'));
+  document.getElementById('s-payments').classList.remove('fail');
+  monoResult.textContent=''; monoResult.className='blast-result';
+  modResult.textContent=''; modResult.className='blast-result';
+}
+resetBlastBtn.addEventListener('click', resetBlast);
+
+blastBtn.addEventListener('click', () => {
+  resetBlast();
+  blastBtn.disabled = true;
+  // modular: only payments flashes
+  const sPay = document.getElementById('s-payments');
+  sPay.classList.add('fail');
+  setTimeout(()=>{
+    modResult.textContent = '✅ Blast radius: 1 feature. Payments was changed and tested in isolation — login, search, and profile were never touched.';
+    modResult.className = 'blast-result saved';
+  }, 500);
+
+  // monolith: cascades through all four
+  let i = 0;
+  function propagate(){
+    if(i >= monoIds.length){
+      monoResult.textContent = '💥 Blast radius: 4 features. A payments change broke login, search, and profile too — because it was all one shared codebase.';
+      monoResult.className = 'blast-result dead';
+      blastBtn.disabled = false;
+      return;
+    }
+    document.getElementById(monoIds[i]).classList.add('fail');
+    i++;
+    setTimeout(propagate, 380);
+  }
+  propagate();
+});
+
+/* ============ GAME 2: TECH DEBT SNOWBALL ============ */
+const shortcutSlider = document.getElementById('shortcutSlider');
+const shortcutVal = document.getElementById('shortcutVal');
+const velocityChart = document.getElementById('velocityChart');
+const snowball = document.getElementById('snowball');
+const sprintVal = document.getElementById('sprintVal');
+const debtScoreVal = document.getElementById('debtScoreVal');
+const debtWarning = document.getElementById('debtWarning');
+const simulateDebtBtn = document.getElementById('simulateDebtBtn');
+const resetDebtBtn = document.getElementById('resetDebtBtn');
+
+shortcutSlider.addEventListener('input', ()=> shortcutVal.textContent = shortcutSlider.value);
+
+function buildEmptyChart(){
+  velocityChart.innerHTML = '';
+  for(let s=1;s<=5;s++){
+    const col = document.createElement('div');
+    col.className = 'vbar-col';
+    col.innerHTML = '<div class="vbar" id="vbar-'+s+'" style="height:4px;"></div><div class="vbar-label">S'+s+'</div>';
+    velocityChart.appendChild(col);
+  }
+}
+buildEmptyChart();
+
+function resetDebt(){
+  buildEmptyChart();
+  snowball.style.width='40px'; snowball.style.height='40px';
+  sprintVal.textContent='0 / 5';
+  debtScoreVal.textContent='0';
+  debtWarning.classList.remove('show');
+}
+resetDebtBtn.addEventListener('click', resetDebt);
+
+simulateDebtBtn.addEventListener('click', () => {
+  resetDebt();
+  simulateDebtBtn.disabled = true;
+  const shortcuts = parseInt(shortcutSlider.value);
+  let sprint = 0;
+  function nextSprint(){
+    sprint++;
+    if(sprint > 5){ simulateDebtBtn.disabled=false; return; }
+    const velocity = Math.max(12, 100 - (sprint*shortcuts*3));
+    const debt = sprint*shortcuts*8;
+    const bar = document.getElementById('vbar-'+sprint);
+    bar.style.height = Math.max(4, velocity*1.3) + 'px';
+    bar.style.background = velocity < 40 ? 'linear-gradient(180deg, var(--down), var(--down-dim))' :
+                            velocity < 70 ? 'linear-gradient(180deg, var(--warn), var(--warn-dim))' :
+                            'linear-gradient(180deg, var(--up), var(--up-dim))';
+    const ballSize = 40 + sprint*shortcuts*3.5;
+    snowball.style.width = ballSize+'px';
+    snowball.style.height = ballSize+'px';
+    sprintVal.textContent = sprint + ' / 5';
+    debtScoreVal.textContent = debt;
+    if(velocity < 40) debtWarning.classList.add('show');
+    setTimeout(nextSprint, 700);
+  }
+  nextSprint();
+});
+
+/* ============ GAME 3: OBSERVABILITY SHOWDOWN ============ */
+const triggerBugBtn = document.getElementById('triggerBugBtn');
+const resetObsBtn = document.getElementById('resetObsBtn');
+const blindLog = document.getElementById('blindLog');
+const litLog = document.getElementById('litLog');
+const blindBar = document.getElementById('blindBar');
+const litBar = document.getElementById('litBar');
+const blindTime = document.getElementById('blindTime');
+const litTime = document.getElementById('litTime');
+
+function olog(el, msg, cls){
+  const d = document.createElement('div');
+  d.textContent = msg;
+  if(cls) d.className = cls;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+function resetObs(){
+  blindLog.innerHTML=''; litLog.innerHTML='';
+  blindBar.style.transition='none'; blindBar.style.width='0%';
+  litBar.style.transition='none'; litBar.style.width='0%';
+  blindTime.textContent='—'; litTime.textContent='—';
+}
+resetObsBtn.addEventListener('click', resetObs);
+
+triggerBugBtn.addEventListener('click', () => {
+  resetObs();
+  triggerBugBtn.disabled = true;
+
+  // "with monitoring" path — fast
+  olog(litLog, '🚨 Alert fired: error spike in Payments Service', 'err');
+  setTimeout(()=>olog(litLog, '📈 p99 latency +300%, traced to recent deploy', 'info'), 500);
+  setTimeout(()=>olog(litLog, '🔧 Rolled back deploy', 'info'), 1200);
+  setTimeout(()=>{
+    olog(litLog, '✔ Resolved', 'ok');
+    litTime.textContent = 'MTTR: 12 min';
+  }, 1700);
+  litBar.style.transition = 'width 1.7s linear';
+  requestAnimationFrame(()=> litBar.style.width='100%');
+
+  // "no monitoring" path — slow, guessing
+  olog(blindLog, '🔦 Something is wrong... checking manually', 'info');
+  setTimeout(()=>olog(blindLog, '❓ Checking database... nothing obvious', 'err'), 900);
+  setTimeout(()=>olog(blindLog, '❓ Checking network config... nothing', 'err'), 2200);
+  setTimeout(()=>olog(blindLog, '❓ Checking cache layer... nothing', 'err'), 3600);
+  setTimeout(()=>olog(blindLog, '❓ Re-reading recent commits...', 'err'), 5000);
+  setTimeout(()=>olog(blindLog, '✔ Finally found it in the deploy logs', 'ok'), 6400);
+  setTimeout(()=>{
+    blindTime.textContent = 'MTTR: 4.5 hrs';
+    triggerBugBtn.disabled = false;
+  }, 6800);
+  blindBar.style.transition = 'width 6.8s linear';
+  requestAnimationFrame(()=> blindBar.style.width='100%');
+});
+
+/* ============ GAME 4: ONBOARDING RACE ============ */
+const docTrack = document.getElementById('docTrack');
+const undocTrack = document.getElementById('undocTrack');
+const docRunner = document.getElementById('docRunner');
+const undocRunner = document.getElementById('undocRunner');
+const docDaysVal = document.getElementById('docDaysVal');
+const undocDaysVal = document.getElementById('undocDaysVal');
+const startRaceBtn = document.getElementById('startRaceBtn');
+const resetRaceBtn = document.getElementById('resetRaceBtn');
+
+function resetRace(){
+  docRunner.style.left='2%'; undocRunner.style.left='2%';
+  docDaysVal.textContent='0 days'; undocDaysVal.textContent='0 days';
+  document.querySelectorAll('.obstacle-note').forEach(n=>n.remove());
+}
+resetRaceBtn.addEventListener('click', resetRace);
+
+function showObstacle(track, runnerLeftPct, text){
+  const note = document.createElement('div');
+  note.className = 'obstacle-note';
+  note.style.left = runnerLeftPct + '%';
+  note.textContent = text;
+  track.appendChild(note);
+  requestAnimationFrame(()=>note.classList.add('show'));
+  setTimeout(()=>{ note.classList.remove('show'); setTimeout(()=>note.remove(), 300); }, 1100);
+}
+
+startRaceBtn.addEventListener('click', () => {
+  resetRace();
+  startRaceBtn.disabled = true;
+
+  // documented: smooth, fast — 3 steps to finish
+  let docDay = 0;
+  const docSteps = [30, 60, 90];
+  let di = 0;
+  function docStep(){
+    if(di >= docSteps.length){ return; }
+    docRunner.style.left = docSteps[di] + '%';
+    docDay += (di===0?1:0.5);
+    docDaysVal.textContent = docDay.toFixed(1) + ' days';
+    di++;
+    setTimeout(docStep, 900);
+  }
+  docStep();
+
+  // undocumented: slow, with obstacle pauses — more, slower steps
+  const undocPlan = [
+    {pos:15, delay:1000, note:'🤔 no README...'},
+    {pos:15, delay:1400, note:'😩 tribal knowledge needed'},
+    {pos:32, delay:1000, note:null},
+    {pos:32, delay:1400, note:'🔁 asking 3 people for context'},
+    {pos:55, delay:1000, note:null},
+    {pos:55, delay:1300, note:'😵 build fails, no docs on setup'},
+    {pos:78, delay:1100, note:null},
+    {pos:92, delay:900, note:null},
+  ];
+  let ui = 0;
+  let undocDay = 0;
+  function undocStep(){
+    if(ui >= undocPlan.length){ startRaceBtn.disabled=false; return; }
+    const step = undocPlan[ui];
+    undocRunner.style.left = step.pos + '%';
+    undocDay += 1.8;
+    undocDaysVal.textContent = undocDay.toFixed(1) + ' days';
+    if(step.note) showObstacle(undocTrack, step.pos, step.note);
+    ui++;
+    setTimeout(undocStep, step.delay);
+  }
+  undocStep();
+});
+
+/* ============ SCORED QUIZ ============ */
+let quizScoreCount = 0;
+const quizScoreEl = document.getElementById('quizScore');
+document.querySelectorAll('.quiz-card').forEach(card => {
+  const opts = card.querySelectorAll('.quiz-opt');
+  opts.forEach(opt => {
+    opt.addEventListener('click', () => {
+      if(card.dataset.answered) return;
+      card.dataset.answered = 'true';
+      opts.forEach(o => o.classList.add(o.dataset.correct === 'true' ? 'correct' : 'wrong'));
+      if(opt.dataset.correct === 'true'){
+        quizScoreCount++;
+        quizScoreEl.textContent = quizScoreCount;
+      }
+    });
+  });
+});
+</script>
+</body>
+</html>

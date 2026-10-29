@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scalability — System Design Characteristics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220; --panel:#121B2E; --panel-2:#0F1729; --border:#22304A;
+    --amber:#F5A623; --teal:#2DD4BF; --red:#EF4444; --text:#E7ECF3; --muted:#8996AC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(245,166,35,0.08), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 110%, rgba(45,212,191,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; padding:32px 20px 80px;
+  }
+  .wrap{max-width:1040px;margin:0 auto;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:var(--teal);text-transform:uppercase;margin-bottom:10px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(32px,5vw,44px);margin:0 0 10px;letter-spacing:-0.02em;}
+  .sub{color:var(--muted);max-width:700px;line-height:1.55;font-size:15px;margin-bottom:26px;}
+  h2{font-family:'Space Grotesk',sans-serif;font-size:21px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  .section-num{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);border:1px solid var(--border);border-radius:5px;padding:2px 7px;}
+  .section-sub{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.55;max-width:720px;}
+  .section{margin-bottom:52px;}
+  hr.div{border:none;border-top:1px solid var(--border);margin:44px 0;}
+
+  .status-strip{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;margin-bottom:16px;flex-wrap:wrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+  .dot.pulse{animation:pulse 1.6s ease-in-out infinite;}
+  .dot.down{background:var(--red);}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,0.5);}50%{box-shadow:0 0 0 6px rgba(245,166,35,0);}}
+  .status-strip .label{color:var(--muted);}
+  .status-strip .val{color:var(--text);font-weight:600;}
+  .status-strip .sep{width:1px;height:14px;background:var(--border);}
+
+  .stage{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;overflow:hidden;}
+  .stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+
+  /* Scene A - vertical */
+  .vstage{height:260px;}
+  .vbox-holder{position:absolute;left:120px;top:0;bottom:0;display:flex;align-items:center;}
+  .vbox{position:relative;border-radius:14px;border:2px solid var(--teal);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;color:var(--teal);transition:width .5s cubic-bezier(.4,0,.2,1), height .5s cubic-bezier(.4,0,.2,1);}
+  .vbox .tier-name{font-family:'Space Grotesk',sans-serif;font-size:15px;color:var(--text);margin-bottom:4px;}
+  .vbox .tier-spec{font-size:10.5px;color:var(--muted);}
+  .vbox.overloaded{border-color:var(--red);box-shadow:0 0 24px rgba(239,68,68,0.35);}
+  .reboot-overlay{position:absolute;inset:0;background:rgba(11,18,32,0.88);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);}
+  .reboot-overlay.show{opacity:1;}
+  .spinner{width:22px;height:22px;border:2px solid rgba(245,166,35,0.25);border-top-color:var(--amber);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .client-node{position:absolute;left:20px;top:50%;transform:translateY(-50%);width:60px;height:60px;border-radius:10px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .client-node .cl{font-size:9px;position:absolute;bottom:-18px;}
+
+  .tier-ladder{display:flex;gap:8px;align-items:center;margin:14px 0 0;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+  .tier-pip{width:34px;height:34px;border-radius:8px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;background:var(--panel-2);transition:all .3s;}
+  .tier-pip.active{border-color:var(--amber);color:var(--amber);box-shadow:0 0 10px rgba(245,166,35,0.3);}
+  .tier-pip.passed{border-color:var(--teal);color:var(--teal);}
+
+  /* Scene B - horizontal */
+  .hstage{min-height:260px;}
+  .lb-node{position:absolute;left:20px;top:50%;transform:translateY(-50%);width:60px;height:60px;border-radius:10px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text);font-family:'IBM Plex Mono',monospace;z-index:2;}
+  .instances-wrap{position:absolute;left:120px;right:20px;top:0;bottom:0;display:flex;flex-wrap:wrap;align-content:center;gap:14px;padding:10px 0;}
+  .instance{position:relative;width:58px;height:80px;border-radius:9px;border:1.5px solid var(--teal);background:var(--panel-2);overflow:hidden;display:flex;flex-direction:column-reverse;animation:popIn .35s ease;flex-shrink:0;}
+  .instance.overloaded{border-color:var(--red);}
+  .instance .fill{width:100%;background:linear-gradient(180deg, rgba(245,166,35,0.85), rgba(245,166,35,0.35));transition:height .3s ease;}
+  .instance.overloaded .fill{background:linear-gradient(180deg, rgba(239,68,68,0.9), rgba(239,68,68,0.4));}
+  .instance .lbl{position:absolute;top:4px;left:0;right:0;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);}
+  @keyframes popIn{from{transform:scale(0.4);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+  .packet{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--teal);z-index:1;pointer-events:none;box-shadow:0 0 6px rgba(45,212,191,0.8);}
+  .packet.fail{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,0.8);}
+
+  .controls{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:16px;}
+  .slider-row{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--muted);}
+  input[type=range]{width:170px;accent-color:var(--amber);}
+  .slider-val{font-family:'IBM Plex Mono',monospace;color:var(--text);min-width:46px;}
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px 15px;border-radius:8px;cursor:pointer;transition:border-color .2s,color .2s;}
+  button:hover:not(:disabled){border-color:var(--teal);color:var(--teal);}
+  button:disabled{opacity:0.35;cursor:not-allowed;}
+  button.primary{border-color:var(--amber);color:var(--amber);}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;}
+  .metric{background:var(--panel);padding:14px 16px;}
+  .metric .m-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .metric .m-val{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;}
+  .metric .m-val.accent{color:var(--amber);}
+  .metric .m-val.danger{color:var(--red);}
+  .metric .m-val.good{color:var(--teal);}
+
+  /* Scene C - race */
+  .race-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  @media(max-width:720px){.race-grid{grid-template-columns:1fr;}}
+  .race-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .race-panel h3{font-family:'Space Grotesk',sans-serif;font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .race-panel h3 .sw{width:9px;height:9px;border-radius:50%;}
+  .race-visual{height:90px;position:relative;background:var(--panel-2);border-radius:8px;border:1px solid var(--border);margin-bottom:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;padding:6px;}
+  .race-box{width:26px;height:26px;border-radius:6px;border:1.5px solid var(--teal);background:rgba(45,212,191,0.08);transition:all .3s;flex-shrink:0;}
+  .race-box.big{width:58px;height:58px;}
+  .race-box.down{border-color:var(--red);background:rgba(239,68,68,0.15);animation:blink .5s step-start infinite;}
+  @keyframes blink{50%{opacity:0.4;}}
+  .race-mini-metrics{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);}
+  .race-mini-metrics b{color:var(--text);}
+
+  .chart-wrap{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px 10px;margin-bottom:16px;}
+  .chart-legend{display:flex;gap:18px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px;}
+  .chart-legend span{display:flex;align-items:center;gap:6px;}
+  .chart-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;}
+  canvas{display:block;width:100%;}
+  #raceChart{height:140px;}
+
+  .scoreboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;}
+  .score{background:var(--panel);padding:14px 16px;}
+  .score .s-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .score .s-row{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:13px;margin-top:4px;}
+  .score .s-row .v-tag{color:var(--amber);}
+  .score .s-row .h-tag{color:var(--teal);}
+
+  table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--border);}
+  td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .note{margin-top:8px;padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:8px;font-size:14px;line-height:1.6;color:var(--text);}
+  .note b{color:var(--teal);}
+  @media (prefers-reduced-motion: reduce){.dot.pulse{animation:none;} .packet{transition:none !important;} .instance{animation:none;} .race-box.down{animation:none;opacity:0.5;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">System Design Characteristics · 03 / 07</div>
+  <h1>Scalability</h1>
+  <p class="sub">A system's ability to handle growing load. There are two fundamentally different ways to get there — make one machine bigger, or use more machines. Each scene below is interactive: drive the traffic yourself in the first two, then watch a full autoscaling race in the third.</p>
+
+  <!-- SCENE A: VERTICAL -->
+  <div class="section">
+    <h2><span class="section-num">A</span> Vertical Scaling — Scaling Up</h2>
+    <p class="section-sub">Give the existing machine more CPU, RAM, or disk. Simple to reason about, but every upgrade usually means a resize/reboot, and there's a hardware ceiling you eventually hit.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="vDot"></span>
+      <span class="label">Tier&nbsp;</span><span class="val" id="vTierName">Small</span>
+      <span class="sep"></span>
+      <span class="label">Capacity&nbsp;</span><span class="val" id="vCapVal">20 rps</span>
+      <span class="sep"></span>
+      <span class="label">Accumulated downtime&nbsp;</span><span class="val" id="vDowntimeVal">0s</span>
+    </div>
+
+    <div class="stage vstage" id="vStage">
+      <svg id="vLines"></svg>
+      <div class="client-node">◆<span class="cl">client</span></div>
+      <div class="vbox-holder"><div class="vbox" id="vBox">
+        <div class="reboot-overlay" id="vReboot"><div class="spinner"></div>RESIZING / REBOOTING…</div>
+        <div class="tier-name" id="vTierNameBig">Small</div>
+        <div class="tier-spec" id="vTierSpec">2 vCPU · 4GB RAM</div>
+      </div></div>
+    </div>
+
+    <div class="tier-ladder" id="vLadder"></div>
+
+    <div class="controls" style="margin-top:16px;">
+      <div class="slider-row">
+        <span>Incoming traffic</span>
+        <input type="range" id="vTraffic" min="0" max="220" value="15">
+        <span class="slider-val" id="vTrafficVal">15 rps</span>
+      </div>
+      <button id="vUpgradeBtn" class="primary">Upgrade tier ▲</button>
+      <button id="vDowngradeBtn">Downgrade ▼</button>
+      <button id="vResetBtn">Reset</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Current load</div><div class="m-val" id="vLoadVal">15 rps</div></div>
+      <div class="metric"><div class="m-label">Headroom</div><div class="m-val accent" id="vHeadroomVal">5 rps</div></div>
+      <div class="metric"><div class="m-label">Requests dropped</div><div class="m-val danger" id="vDroppedVal">0</div></div>
+      <div class="metric"><div class="m-label">Upgrades performed</div><div class="m-val good" id="vUpgradesVal">0</div></div>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE B: HORIZONTAL -->
+  <div class="section">
+    <h2><span class="section-num">B</span> Horizontal Scaling — Scaling Out</h2>
+    <p class="section-sub">Add more machines behind a load balancer instead of upgrading one. Each new instance boots independently — the fleet already serving traffic is never interrupted.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse"></span>
+      <span class="label">Instances&nbsp;</span><span class="val" id="hCountVal">2</span>
+      <span class="sep"></span>
+      <span class="label">Aggregate capacity&nbsp;</span><span class="val" id="hCapVal">60 rps</span>
+      <span class="sep"></span>
+      <span class="label">Downtime from scaling&nbsp;</span><span class="val" id="hDowntimeVal" style="color:var(--teal);">0.0s</span>
+    </div>
+
+    <div class="stage hstage" id="hStage">
+      <svg id="hLines"></svg>
+      <div class="lb-node">⇄</div>
+      <div class="instances-wrap" id="hInstances"></div>
+    </div>
+
+    <div class="controls" style="margin-top:16px;">
+      <div class="slider-row">
+        <span>Incoming traffic</span>
+        <input type="range" id="hTraffic" min="0" max="300" value="45">
+        <span class="slider-val" id="hTrafficVal">45 rps</span>
+      </div>
+      <button id="hAddBtn" class="primary">+ Add instance</button>
+      <button id="hRemoveBtn">− Remove instance</button>
+      <button id="hResetBtn">Reset</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Current load</div><div class="m-val" id="hLoadVal">45 rps</div></div>
+      <div class="metric"><div class="m-label">Load per instance</div><div class="m-val accent" id="hPerInstVal">22.5 rps</div></div>
+      <div class="metric"><div class="m-label">Requests dropped</div><div class="m-val danger" id="hDroppedVal">0</div></div>
+      <div class="metric"><div class="m-label">Scale events</div><div class="m-val good" id="hEventsVal">0</div></div>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE C: RACE -->
+  <div class="section">
+    <h2><span class="section-num">C</span> Head-to-Head: Autoscaling Race</h2>
+    <p class="section-sub">A simulated day of traffic — with a random spike thrown in — hits both strategies at once. Each strategy auto-scales itself when it senses it's near capacity. Watch how downtime and cost accumulate differently.</p>
+
+    <div class="controls">
+      <button id="raceToggle" class="primary">▶ Start race</button>
+      <button id="raceReset">Reset</button>
+      <div class="slider-row">
+        <span>Speed</span>
+        <input type="range" id="raceSpeed" min="1" max="4" value="1" step="1">
+        <span class="slider-val" id="raceSpeedVal">1×</span>
+      </div>
+    </div>
+
+    <div class="race-grid">
+      <div class="race-panel">
+        <h3><span class="sw" style="background:var(--amber);"></span>Vertical strategy</h3>
+        <div class="race-visual" id="raceVVisual"><div class="race-box big" id="raceVBox"></div></div>
+        <div class="race-mini-metrics">
+          <span>Tier: <b id="raceVTier">Small</b></span>
+          <span>Capacity: <b id="raceVCap">20</b></span>
+        </div>
+      </div>
+      <div class="race-panel">
+        <h3><span class="sw" style="background:var(--teal);"></span>Horizontal strategy</h3>
+        <div class="race-visual" id="raceHVisual"></div>
+        <div class="race-mini-metrics">
+          <span>Instances: <b id="raceHCount">1</b></span>
+          <span>Capacity: <b id="raceHCap">30</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="chart-legend">
+        <span><i style="background:#8996AC;"></i>Incoming traffic</span>
+        <span><i style="background:var(--amber);"></i>Vertical response time</span>
+        <span><i style="background:var(--teal);"></i>Horizontal response time</span>
+      </div>
+      <canvas id="raceChart"></canvas>
+    </div>
+
+    <div class="scoreboard">
+      <div class="score">
+        <div class="s-label">Total downtime</div>
+        <div class="s-row"><span class="v-tag">Vertical</span><b id="scoreVDown">0.0s</b></div>
+        <div class="s-row"><span class="h-tag">Horizontal</span><b id="scoreHDown">0.0s</b></div>
+      </div>
+      <div class="score">
+        <div class="s-label">Peak response time</div>
+        <div class="s-row"><span class="v-tag">Vertical</span><b id="scoreVPeak">0ms</b></div>
+        <div class="s-row"><span class="h-tag">Horizontal</span><b id="scoreHPeak">0ms</b></div>
+      </div>
+      <div class="score">
+        <div class="s-label">Relative compute cost</div>
+        <div class="s-row"><span class="v-tag">Vertical</span><b id="scoreVCost">0 units</b></div>
+        <div class="s-row"><span class="h-tag">Horizontal</span><b id="scoreHCost">0 units</b></div>
+      </div>
+      <div class="score">
+        <div class="s-label">Requests dropped</div>
+        <div class="s-row"><span class="v-tag">Vertical</span><b id="scoreVDrop">0</b></div>
+        <div class="s-row"><span class="h-tag">Horizontal</span><b id="scoreHDrop">0</b></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:8px;">Vertical vs. Horizontal, side by side</h2>
+  <table>
+    <thead><tr><th></th><th>Vertical (scale up)</th><th>Horizontal (scale out)</th></tr></thead>
+    <tbody>
+      <tr><td>Ceiling</td><td>Hard limit — biggest machine money can buy</td><td>Very high — keep adding machines</td></tr>
+      <tr><td>Downtime to scale</td><td>Usually yes (resize/reboot)</td><td>No — new nodes join independently</td></tr>
+      <tr><td>Complexity</td><td>Low — same single system</td><td>Higher — needs a load balancer, statelessness, data partitioning</td></tr>
+      <tr><td>Cost curve</td><td>Jumps in big steps, gets disproportionately expensive at the top end</td><td>Grows more linearly with each added unit</td></tr>
+      <tr><td>Good fit</td><td>Simple apps, single-node databases, quick early-stage wins</td><td>Web/API tiers, stateless services, anything expecting unpredictable growth</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>In practice, most real systems use both.</b> Databases are often scaled up (vertically) as far as reasonable before the harder work of sharding begins, while stateless application servers are scaled out (horizontally) almost by default. The autoscaling race above is a simplification, but the shapes it produces — vertical's downtime steps and horizontal's smoother capacity ramp — are exactly why cloud providers default new services to horizontal autoscaling groups.
+  </div>
+</div>
+
+<script>
+/* ============ SHARED HELPER ============ */
+function movePacketBetween(container, from, to, isFail){
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = reduceMotion ? 0 : 300;
+  const p = document.createElement('div');
+  p.className = 'packet' + (isFail ? ' fail' : '');
+  container.appendChild(p);
+  p.style.left = (from.x-3)+'px'; p.style.top = (from.y-3)+'px';
+  p.style.transition = `left ${dur}ms linear, top ${dur}ms linear`;
+  requestAnimationFrame(()=>{ p.style.left=(to.x-3)+'px'; p.style.top=(to.y-3)+'px'; });
+  setTimeout(()=>{ p.style.opacity='0'; setTimeout(()=>p.remove(),150); }, dur);
+}
+function drawDashedLine(svg, x1,y1,x2,y2,color){
+  const ns='http://www.w3.org/2000/svg';
+  const l=document.createElementNS(ns,'line');
+  l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+  l.setAttribute('stroke',color);l.setAttribute('stroke-width','1.5');
+  l.setAttribute('stroke-dasharray','4 4');l.setAttribute('opacity','0.35');
+  svg.appendChild(l);
+}
+
+/* ============ SCENE A: VERTICAL ============ */
+(function(){
+  const tiers = [
+    {name:'Small', spec:'2 vCPU · 4GB RAM', cap:20, w:70, h:70},
+    {name:'Medium', spec:'4 vCPU · 8GB RAM', cap:45, w:90, h:90},
+    {name:'Large', spec:'8 vCPU · 16GB RAM', cap:80, w:110, h:110},
+    {name:'XL', spec:'16 vCPU · 32GB RAM', cap:130, w:130, h:130},
+    {name:'Max', spec:'32 vCPU · 64GB RAM', cap:200, w:150, h:150},
+  ];
+  let tierIdx = 0;
+  let traffic = 15;
+  let downtimeAccum = 0;
+  let dropped = 0;
+  let upgrades = 0;
+  let isRebooting = false;
+
+  const stage = document.getElementById('vStage');
+  const box = document.getElementById('vBox');
+  const reboot = document.getElementById('vReboot');
+  const lines = document.getElementById('vLines');
+  const ladder = document.getElementById('vLadder');
+
+  function buildLadder(){
+    ladder.innerHTML='';
+    tiers.forEach((t,i)=>{
+      const pip = document.createElement('div');
+      pip.className = 'tier-pip' + (i===tierIdx?' active':(i<tierIdx?' passed':''));
+      pip.textContent = t.name[0];
+      ladder.appendChild(pip);
+    });
+  }
+
+  function applyTier(){
+    const t = tiers[tierIdx];
+    box.style.width = t.w+'px';
+    box.style.height = t.h+'px';
+    document.getElementById('vTierNameBig').textContent = t.name;
+    document.getElementById('vTierSpec').textContent = t.spec;
+    document.getElementById('vTierName').textContent = t.name;
+    document.getElementById('vCapVal').textContent = t.cap+' rps';
+    buildLadder();
+    document.getElementById('vUpgradeBtn').disabled = (tierIdx===tiers.length-1);
+    document.getElementById('vDowngradeBtn').disabled = (tierIdx===0);
+  }
+
+  function drawLines(){
+    lines.innerHTML='';
+    const r = stage.getBoundingClientRect();
+    const boxRect = box.getBoundingClientRect();
+    const cx = 20+30, cy = r.height/2;
+    const bx = boxRect.left - r.left, by = r.height/2;
+    drawDashedLine(lines, cx, cy, bx, by, '#8996AC');
+  }
+
+  function doUpgrade(dir){
+    if(isRebooting) return;
+    if(dir>0 && tierIdx>=tiers.length-1) return;
+    if(dir<0 && tierIdx<=0) return;
+    isRebooting = true;
+    reboot.classList.add('show');
+    const startTime = performance.now();
+    setTimeout(()=>{
+      tierIdx += dir;
+      applyTier();
+      drawLines();
+      if(dir>0) upgrades++;
+      document.getElementById('vUpgradesVal').textContent = upgrades;
+      downtimeAccum += 45; // simulated typical resize/reboot seconds
+      document.getElementById('vDowntimeVal').textContent = downtimeAccum+'s';
+      reboot.classList.remove('show');
+      isRebooting = false;
+    }, 1300);
+  }
+
+  document.getElementById('vUpgradeBtn').addEventListener('click', ()=>doUpgrade(1));
+  document.getElementById('vDowngradeBtn').addEventListener('click', ()=>doUpgrade(-1));
+  document.getElementById('vTraffic').addEventListener('input', e=>{
+    traffic = parseInt(e.target.value);
+    document.getElementById('vTrafficVal').textContent = traffic+' rps';
+  });
+  document.getElementById('vResetBtn').addEventListener('click', ()=>{
+    tierIdx=0; traffic=15; downtimeAccum=0; dropped=0; upgrades=0;
+    document.getElementById('vTraffic').value = 15;
+    document.getElementById('vTrafficVal').textContent='15 rps';
+    document.getElementById('vDowntimeVal').textContent='0s';
+    document.getElementById('vUpgradesVal').textContent='0';
+    document.getElementById('vDroppedVal').textContent='0';
+    applyTier(); drawLines();
+  });
+
+  function tick(){
+    const t = tiers[tierIdx];
+    const overloaded = !isRebooting && traffic > t.cap;
+    box.classList.toggle('overloaded', overloaded || isRebooting);
+    document.getElementById('vLoadVal').textContent = traffic+' rps';
+    const headroom = t.cap - traffic;
+    document.getElementById('vHeadroomVal').textContent = headroom+' rps';
+    document.getElementById('vHeadroomVal').className = 'm-val ' + (headroom<0?'danger':'accent');
+    if(overloaded){
+      dropped += Math.ceil((traffic-t.cap)/10);
+      document.getElementById('vDroppedVal').textContent = dropped;
+    }
+    if(Math.random() < 0.5){
+      const r = stage.getBoundingClientRect();
+      const boxRect = box.getBoundingClientRect();
+      const from = {x:50, y:r.height/2};
+      const to = {x:boxRect.left-r.left+ (isRebooting?0:20), y:r.height/2};
+      movePacketBetween(stage, from, to, overloaded || isRebooting);
+    }
+  }
+  applyTier(); drawLines();
+  window.addEventListener('resize', drawLines);
+  setInterval(tick, 400);
+})();
+
+/* ============ SCENE B: HORIZONTAL ============ */
+(function(){
+  const perInstanceCap = 30;
+  let instances = 2;
+  let traffic = 45;
+  let downtime = 0;
+  let dropped = 0;
+  let events = 0;
+  const maxInstances = 8;
+
+  const stage = document.getElementById('hStage');
+  const wrap = document.getElementById('hInstances');
+  const lines = document.getElementById('hLines');
+
+  function render(){
+    wrap.innerHTML='';
+    const perLoad = traffic/instances;
+    for(let i=0;i<instances;i++){
+      const el = document.createElement('div');
+      const overloaded = perLoad > perInstanceCap;
+      el.className = 'instance' + (overloaded?' overloaded':'');
+      const pct = Math.min(100, (perLoad/perInstanceCap)*100);
+      el.innerHTML = `<div class="fill" style="height:${pct}%"></div><div class="lbl">i${i+1}</div>`;
+      wrap.appendChild(el);
+    }
+    document.getElementById('hCountVal').textContent = instances;
+    document.getElementById('hCapVal').textContent = (instances*perInstanceCap)+' rps';
+    document.getElementById('hPerInstVal').textContent = perLoad.toFixed(1)+' rps';
+    document.getElementById('hLoadVal').textContent = traffic+' rps';
+    drawLines();
+  }
+
+  function drawLines(){
+    lines.innerHTML='';
+    const r = stage.getBoundingClientRect();
+    const lb = {x:50, y:r.height/2};
+    const items = wrap.querySelectorAll('.instance');
+    items.forEach(it=>{
+      const rect = it.getBoundingClientRect();
+      const x = rect.left - r.left + rect.width/2;
+      const y = rect.top - r.top;
+      drawDashedLine(lines, lb.x, lb.y, x, y, '#8996AC');
+    });
+  }
+
+  document.getElementById('hAddBtn').addEventListener('click', ()=>{
+    if(instances>=maxInstances) return;
+    instances++; events++;
+    document.getElementById('hEventsVal').textContent = events;
+    render();
+  });
+  document.getElementById('hRemoveBtn').addEventListener('click', ()=>{
+    if(instances<=1) return;
+    instances--; events++;
+    document.getElementById('hEventsVal').textContent = events;
+    render();
+  });
+  document.getElementById('hTraffic').addEventListener('input', e=>{
+    traffic = parseInt(e.target.value);
+    document.getElementById('hTrafficVal').textContent = traffic+' rps';
+    render();
+  });
+  document.getElementById('hResetBtn').addEventListener('click', ()=>{
+    instances=2; traffic=45; dropped=0; events=0;
+    document.getElementById('hTraffic').value=45;
+    document.getElementById('hTrafficVal').textContent='45 rps';
+    document.getElementById('hDroppedVal').textContent='0';
+    document.getElementById('hEventsVal').textContent='0';
+    render();
+  });
+
+  function tick(){
+    const perLoad = traffic/instances;
+    const overloaded = perLoad > perInstanceCap;
+    if(overloaded){
+      dropped += Math.ceil((perLoad-perInstanceCap)/5);
+      document.getElementById('hDroppedVal').textContent = dropped;
+    }
+    if(Math.random()<0.6){
+      const r = stage.getBoundingClientRect();
+      const items = wrap.querySelectorAll('.instance');
+      if(items.length){
+        const target = items[Math.floor(Math.random()*items.length)];
+        const rect = target.getBoundingClientRect();
+        const from = {x:50, y:r.height/2};
+        const to = {x:rect.left-r.left+rect.width/2, y:rect.top-r.top+10};
+        movePacketBetween(stage, from, to, overloaded);
+      }
+    }
+  }
+  render();
+  window.addEventListener('resize', drawLines);
+  setInterval(tick, 350);
+})();
+
+/* ============ SCENE C: RACE ============ */
+(function(){
+  const vTiers = [20,45,80,130,200];
+  const vTierNames = ['Small','Medium','Large','XL','Max'];
+  const hPerInstCap = 30;
+  const maxH = 10;
+
+  let running = false;
+  let speed = 1;
+  let simTime = 0; // seconds of simulated time
+  let vTierIdx = 0, vDowntime = 0, vPeak = 0, vCost = 0, vDrop = 0, vInDowntime = false, vDowntimeTimer = 0;
+  let hCount = 1, hDowntime = 0, hPeak = 0, hCost = 0, hDrop = 0;
+
+  const trace = []; // {t, traffic, v, h}
+  const TRACE_MAX = 240;
+
+  const chart = document.getElementById('raceChart');
+  const ctx = chart.getContext('2d');
+
+  function trafficAt(t){
+    // baseline daily wave + occasional spike
+    const base = 55 + 45*Math.sin(t/26);
+    const spike = (Math.floor(t/40)%5===2 && (t%40)<6) ? 90 : 0;
+    return Math.max(5, base + spike);
+  }
+
+  function responseTime(load, cap, down){
+    if(down) return 900;
+    if(load<=cap) return 20 + (load/cap)*40;
+    const overRatio = load/cap;
+    return 60 + (overRatio-1)*400;
+  }
+
+  function updateVerticalVisual(){
+    document.getElementById('raceVTier').textContent = vTierNames[vTierIdx];
+    document.getElementById('raceVCap').textContent = vTiers[vTierIdx];
+    const box = document.getElementById('raceVBox');
+    box.style.width = (40+vTierIdx*14)+'px';
+    box.style.height = (40+vTierIdx*14)+'px';
+    box.classList.toggle('down', vInDowntime);
+  }
+  function updateHorizontalVisual(){
+    const visual = document.getElementById('raceHVisual');
+    visual.innerHTML='';
+    for(let i=0;i<hCount;i++){
+      const b = document.createElement('div');
+      b.className='race-box';
+      visual.appendChild(b);
+    }
+    document.getElementById('raceHCount').textContent = hCount;
+    document.getElementById('raceHCap').textContent = hCount*hPerInstCap;
+  }
+
+  function stepSim(dt){
+    simTime += dt;
+    const load = trafficAt(simTime);
+
+    // vertical strategy
+    let vCap = vTiers[vTierIdx];
+    if(vInDowntime){
+      vDowntimeTimer -= dt;
+      vDowntime += dt;
+      if(vDowntimeTimer<=0){ vInDowntime=false; vTierIdx++; updateVerticalVisual(); }
+    } else if(load > vCap*0.88 && vTierIdx < vTiers.length-1){
+      vInDowntime = true;
+      vDowntimeTimer = 3.2;
+      updateVerticalVisual();
+    }
+    vCost += (vTierIdx+1)*dt*0.6;
+    const vRT = responseTime(load, vCap, vInDowntime);
+    if(vRT>vPeak) vPeak = vRT;
+    if(vInDowntime || load>vCap) vDrop += dt*2;
+
+    // horizontal strategy
+    let hCap = hCount*hPerInstCap;
+    if(load > hCap*0.85 && hCount < maxH){ hCount++; updateHorizontalVisual(); }
+    else if(load < hCap*0.4 && hCount>1 && (hCount-1)*hPerInstCap > load*1.3){ hCount--; updateHorizontalVisual(); }
+    hCost += hCount*dt*0.5;
+    const hRT = responseTime(load, hCap, false);
+    if(hRT>hPeak) hPeak = hRT;
+    if(load>hCap) hDrop += dt*2;
+
+    trace.push({traffic:load, v:vRT, h:hRT});
+    if(trace.length>TRACE_MAX) trace.shift();
+
+    // UI
+    document.getElementById('scoreVDown').textContent = vDowntime.toFixed(1)+'s';
+    document.getElementById('scoreHDown').textContent = hDowntime.toFixed(1)+'s';
+    document.getElementById('scoreVPeak').textContent = Math.round(vPeak)+'ms';
+    document.getElementById('scoreHPeak').textContent = Math.round(hPeak)+'ms';
+    document.getElementById('scoreVCost').textContent = Math.round(vCost)+' units';
+    document.getElementById('scoreHCost').textContent = Math.round(hCost)+' units';
+    document.getElementById('scoreVDrop').textContent = Math.round(vDrop);
+    document.getElementById('scoreHDrop').textContent = Math.round(hDrop);
+  }
+
+  function drawChart(){
+    const w = chart.width = chart.clientWidth*devicePixelRatio;
+    const h = chart.height = chart.clientHeight*devicePixelRatio;
+    ctx.clearRect(0,0,w,h);
+    if(trace.length<2) return;
+    const maxRT = 900, maxTraffic = 220;
+    const step = w/TRACE_MAX;
+    let x0 = w - trace.length*step;
+
+    function plot(getter, color, scaleMax){
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2*devicePixelRatio;
+      let x = x0;
+      trace.forEach((pt,i)=>{
+        const v = getter(pt);
+        const y = h - (v/scaleMax)*h*0.92 - 4;
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        x += step;
+      });
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.5;
+    plot(p=>p.traffic, '#8996AC', maxTraffic);
+    ctx.globalAlpha = 1;
+    plot(p=>p.v, '#F5A623', maxRT);
+    plot(p=>p.h, '#2DD4BF', maxRT);
+  }
+
+  let lastFrame = null;
+  function loop(now){
+    if(running){
+      if(lastFrame!=null){
+        const dt = Math.min(0.1,(now-lastFrame)/1000) * speed * 6;
+        stepSim(dt);
+      }
+      lastFrame = now;
+      drawChart();
+    } else {
+      lastFrame = now;
+    }
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('raceToggle').addEventListener('click', function(){
+    running = !running;
+    this.textContent = running ? '⏸ Pause race' : '▶ Start race';
+  });
+  document.getElementById('raceSpeed').addEventListener('input', e=>{
+    speed = parseInt(e.target.value);
+    document.getElementById('raceSpeedVal').textContent = speed+'×';
+  });
+  document.getElementById('raceReset').addEventListener('click', ()=>{
+    running=false;
+    document.getElementById('raceToggle').textContent='▶ Start race';
+    simTime=0; vTierIdx=0; vDowntime=0; vPeak=0; vCost=0; vDrop=0; vInDowntime=false;
+    hCount=1; hDowntime=0; hPeak=0; hCost=0; hDrop=0;
+    trace.length=0;
+    updateVerticalVisual(); updateHorizontalVisual(); drawChart();
+    ['scoreVDown','scoreHDown'].forEach(id=>document.getElementById(id).textContent='0.0s');
+    ['scoreVPeak','scoreHPeak'].forEach(id=>document.getElementById(id).textContent='0ms');
+    ['scoreVCost','scoreHCost'].forEach(id=>document.getElementById(id).textContent='0 units');
+    ['scoreVDrop','scoreHDrop'].forEach(id=>document.getElementById(id).textContent='0');
+  });
+
+  updateVerticalVisual();
+  updateHorizontalVisual();
+  requestAnimationFrame(loop);
+  window.addEventListener('resize', drawChart);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consistency — System Design Characteristics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220; --panel:#121B2E; --panel-2:#0F1729; --border:#22304A;
+    --amber:#F5A623; --teal:#2DD4BF; --red:#EF4444; --text:#E7ECF3; --muted:#8996AC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(245,166,35,0.08), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 110%, rgba(45,212,191,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; padding:32px 20px 80px;
+  }
+  .wrap{max-width:1040px;margin:0 auto;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:var(--teal);text-transform:uppercase;margin-bottom:10px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(32px,5vw,44px);margin:0 0 10px;letter-spacing:-0.02em;}
+  .sub{color:var(--muted);max-width:720px;line-height:1.55;font-size:15px;margin-bottom:26px;}
+  h2{font-family:'Space Grotesk',sans-serif;font-size:21px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  .section-num{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);border:1px solid var(--border);border-radius:5px;padding:2px 7px;}
+  .section-sub{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.55;max-width:720px;}
+  .section{margin-bottom:52px;}
+  hr.div{border:none;border-top:1px solid var(--border);margin:44px 0;}
+
+  .status-strip{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;margin-bottom:16px;flex-wrap:wrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+  .dot.pulse{animation:pulse 1.6s ease-in-out infinite;}
+  .dot.bad{background:var(--red);}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,0.5);}50%{box-shadow:0 0 0 6px rgba(245,166,35,0);}}
+  .status-strip .label{color:var(--muted);}
+  .status-strip .val{color:var(--text);font-weight:600;}
+  .status-strip .sep{width:1px;height:14px;background:var(--border);}
+
+  .stage{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;overflow:hidden;}
+  .stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+
+  .controls{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:16px;}
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px 15px;border-radius:8px;cursor:pointer;transition:border-color .2s,color .2s;}
+  button:hover:not(:disabled){border-color:var(--teal);color:var(--teal);}
+  button:disabled{opacity:0.4;cursor:not-allowed;}
+  button.primary{border-color:var(--amber);color:var(--amber);}
+  button.small{padding:6px 11px;font-size:12px;}
+  .switch-row{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--muted);}
+  .switch{width:42px;height:24px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:all .2s;}
+  .switch.on{background:rgba(245,166,35,0.15);border-color:var(--amber);}
+  .switch.on::after{left:20px;background:var(--amber);}
+  .slider-row{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--muted);}
+  input[type=range]{width:150px;accent-color:var(--amber);}
+  .slider-val{font-family:'IBM Plex Mono',monospace;color:var(--text);min-width:20px;}
+  .seg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .seg button{border:none;border-radius:0;}
+  .seg button.active{background:rgba(245,166,35,0.15);color:var(--amber);}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;}
+  .metric{background:var(--panel);padding:14px 16px;}
+  .metric .m-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .metric .m-val{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;}
+  .metric .m-val.accent{color:var(--amber);}
+  .metric .m-val.danger{color:var(--red);}
+  .metric .m-val.good{color:var(--teal);}
+
+  /* Scene A */
+  .astage{height:220px;}
+  .anode{position:absolute;width:76px;height:70px;margin-left:-38px;margin-top:-35px;border-radius:12px;background:var(--panel-2);border:2px solid var(--teal);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text);transition:all .3s ease;z-index:2;}
+  .anode .ver{font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--teal);}
+  .anode.client{border-color:var(--muted);color:var(--muted);}
+  .anode.syncing{border-color:var(--amber);box-shadow:0 0 14px rgba(245,166,35,0.3);}
+  .anode.stale{border-color:var(--red);}
+  .anode.fresh-flash{box-shadow:0 0 16px rgba(45,212,191,0.4);}
+  .rlabel{position:absolute;bottom:-2px;left:0;right:0;text-align:center;font-size:9px;}
+  .rlabel.stale{color:var(--red);}
+  .rlabel.ok{color:var(--teal);}
+  .packet{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--teal);z-index:1;pointer-events:none;box-shadow:0 0 6px rgba(45,212,191,0.8);}
+
+  /* Scene B */
+  .bstage{height:320px;}
+  .bnode{position:absolute;width:60px;height:60px;margin-left:-30px;margin-top:-30px;border-radius:50%;background:var(--panel-2);border:2px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);transition:all .3s ease;z-index:2;}
+  .bnode .ver{font-family:'Space Grotesk',sans-serif;font-size:14px;color:var(--text);}
+  .bnode.updated{border-color:var(--teal);color:var(--teal);}
+  .bnode.selected-write{box-shadow:0 0 0 4px rgba(245,166,35,0.35);}
+  .bnode.selected-read{box-shadow:0 0 0 4px rgba(45,212,191,0.35);}
+  .guarantee-banner{padding:12px 16px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:13px;margin-bottom:14px;border:1px solid var(--border);}
+  .guarantee-banner.good{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,0.06);}
+  .guarantee-banner.warn{border-color:var(--amber);color:var(--amber);background:rgba(245,166,35,0.06);}
+  .read-result{margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--muted);min-height:20px;}
+  .read-result b.ok{color:var(--teal);}
+  .read-result b.stale{color:var(--red);}
+
+  /* Scene C */
+  .cstage{height:260px;}
+  .cluster{position:absolute;top:20px;bottom:20px;width:38%;border:1.5px dashed var(--border);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+  .cluster.left{left:2%;}
+  .cluster.right{right:2%;}
+  .cluster-label{position:absolute;top:-11px;left:14px;background:var(--panel);padding:0 8px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);}
+  .cnode{width:90px;padding:10px;border-radius:10px;background:var(--panel-2);border:2px solid var(--teal);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text);transition:all .3s;}
+  .cnode .cval{font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--teal);margin-top:4px;}
+  .cnode.rejected{border-color:var(--red);}
+  .cnode.diverged{border-color:var(--amber);}
+  .link-line{position:absolute;top:50%;left:40%;right:40%;height:2px;background:var(--teal);opacity:0.5;z-index:1;transform:translateY(-50%);}
+  .link-line.broken{background:repeating-linear-gradient(90deg, var(--red) 0 8px, transparent 8px 16px);opacity:0.8;}
+  .link-x{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:var(--red);z-index:2;display:none;}
+  .link-x.show{display:block;}
+  .toast{margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--muted);min-height:20px;}
+
+  table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--border);}
+  td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .note{margin-top:8px;padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:8px;font-size:14px;line-height:1.6;color:var(--text);}
+  .note b{color:var(--teal);}
+  @media (prefers-reduced-motion: reduce){.dot.pulse{animation:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">System Design Characteristics · 05 / 07</div>
+  <h1>Consistency</h1>
+  <p class="sub">Whether every read sees the most recent write — or might see something older. It's the characteristic most directly in tension with availability and latency. Three scenes: replication style, the quorum math behind it, and what happens when the network itself breaks.</p>
+
+  <!-- SCENE A -->
+  <div class="section">
+    <h2><span class="section-num">A</span> Synchronous vs. Asynchronous Replication</h2>
+    <p class="section-sub">Write to the primary, then immediately read from a replica. In strong (synchronous) mode the write waits for every replica before confirming. In eventual (asynchronous) mode the write returns instantly and replicas catch up — meaning a read can briefly return something stale.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="aDot"></span>
+      <span class="label">Mode&nbsp;</span><span class="val" id="aModeVal">Eventual (async)</span>
+      <span class="sep"></span>
+      <span class="label">Latest version&nbsp;</span><span class="val" id="aLatestVal">v0</span>
+    </div>
+
+    <div class="stage astage" id="aStage">
+      <svg id="aLines"></svg>
+    </div>
+
+    <div class="controls">
+      <button id="aWriteBtn" class="primary">Write new value ▶</button>
+      <button id="aReadR1" class="small">Read from R1</button>
+      <button id="aReadR2" class="small">Read from R2</button>
+      <button id="aReadR3" class="small">Read from R3</button>
+      <div class="switch-row">
+        <div class="switch" id="aModeSwitch"></div>
+        <span>Strong (synchronous) replication</span>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Last write latency</div><div class="m-val" id="aLatencyVal">—</div></div>
+      <div class="metric"><div class="m-label">Replicas in sync</div><div class="m-val good" id="aSyncVal">3 / 3</div></div>
+      <div class="metric"><div class="m-label">Stale reads detected</div><div class="m-val danger" id="aStaleVal">0</div></div>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE B -->
+  <div class="section">
+    <h2><span class="section-num">B</span> Quorum Consistency — Tuning N, W, R</h2>
+    <p class="section-sub">With N replicas, a write is confirmed once W of them accept it; a read is confirmed once R of them respond, returning the newest version seen. The classic guarantee: if <b>W + R &gt; N</b>, every read quorum is mathematically guaranteed to overlap the last write quorum — no stale reads are possible. Drag the sliders to break that guarantee.</p>
+
+    <div class="guarantee-banner good" id="bBanner">W + R = 6 &gt; N = 5 → every read is guaranteed fresh</div>
+
+    <div class="stage bstage" id="bStage">
+      <svg id="bLines"></svg>
+    </div>
+
+    <div class="controls">
+      <div class="slider-row"><span>N (replicas)</span><input type="range" id="bN" min="3" max="7" value="5"><span class="slider-val" id="bNVal">5</span></div>
+      <div class="slider-row"><span>W (write quorum)</span><input type="range" id="bW" min="1" max="7" value="3"><span class="slider-val" id="bWVal">3</span></div>
+      <div class="slider-row"><span>R (read quorum)</span><input type="range" id="bR" min="1" max="7" value="3"><span class="slider-val" id="bRVal">3</span></div>
+    </div>
+    <div class="controls">
+      <button id="bWriteBtn" class="primary">Write value ▶</button>
+      <button id="bReadBtn">Read value ▶</button>
+      <button id="bResetBtn">Reset</button>
+    </div>
+    <div class="read-result" id="bReadResult">Try a write, then a read.</div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Total writes</div><div class="m-val" id="bWritesVal">0</div></div>
+      <div class="metric"><div class="m-label">Total reads</div><div class="m-val" id="bReadsVal">0</div></div>
+      <div class="metric"><div class="m-label">Stale reads</div><div class="m-val danger" id="bStaleVal">0</div></div>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- SCENE C -->
+  <div class="section">
+    <h2><span class="section-num">C</span> CAP Theorem: When the Network Splits</h2>
+    <p class="section-sub">Two clusters, one link between them. Cut the link and you must choose: reject requests to stay consistent (CP), or keep serving both sides and risk them disagreeing (AP). You can't have all three of consistency, availability, and partition tolerance at once — partitions happen, so this is really a C-vs-A choice during one.</p>
+
+    <div class="status-strip">
+      <span class="dot pulse" id="cDot"></span>
+      <span class="label">Network&nbsp;</span><span class="val" id="cNetVal">Connected</span>
+      <span class="sep"></span>
+      <span class="label">Strategy&nbsp;</span><span class="val" id="cModeVal">CP — consistency first</span>
+    </div>
+
+    <div class="stage cstage" id="cStage">
+      <div class="cluster left"><div class="cluster-label">US-EAST</div>
+        <div class="cnode" id="cNodeA"><div>replica</div><div class="cval" id="cValA">"A"</div></div>
+      </div>
+      <div class="link-line" id="cLink"></div>
+      <div class="link-x" id="cLinkX">✕</div>
+      <div class="cluster right"><div class="cluster-label">EU-WEST</div>
+        <div class="cnode" id="cNodeB"><div>replica</div><div class="cval" id="cValB">"A"</div></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="switch-row">
+        <div class="switch" id="cPartitionSwitch"></div>
+        <span>Partition the network</span>
+      </div>
+      <div class="seg" id="cModeSeg">
+        <button class="small active" data-mode="CP">CP</button>
+        <button class="small" data-mode="AP">AP</button>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="cWriteABtn">Write on US-EAST</button>
+      <button id="cWriteBBtn">Write on EU-WEST</button>
+      <button id="cHealBtn" class="primary">Heal partition</button>
+      <button id="cResetBtn">Reset</button>
+    </div>
+    <div class="toast" id="cToast">Both sides agree. Try partitioning the network, then writing on each side.</div>
+
+    <div class="metrics">
+      <div class="metric"><div class="m-label">Requests rejected</div><div class="m-val danger" id="cRejectedVal">0</div></div>
+      <div class="metric"><div class="m-label">Conflicting writes</div><div class="m-val accent" id="cConflictVal">0</div></div>
+      <div class="metric"><div class="m-label">Conflicts resolved</div><div class="m-val good" id="cResolvedVal">0</div></div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:8px;">Consistency models, compared</h2>
+  <table>
+    <thead><tr><th>Model</th><th>Guarantee</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Strong consistency</td><td>Every read sees the latest write, always</td><td>Higher write latency, lower availability during partitions</td></tr>
+      <tr><td>Eventual consistency</td><td>Reads may be stale briefly, but converge given time</td><td>Fast writes and high availability; stale-read bugs possible</td></tr>
+      <tr><td>Quorum (tunable)</td><td>Configurable per read/write via N, W, R</td><td>Lets you trade latency against staleness explicitly</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Why this is the hardest characteristic to get right:</b> consistency isn't free — every scene above traded it against latency or availability somewhere. Real systems rarely pick one model globally; they pick per operation. A bank balance read might demand strong consistency; a social media like-count is happy to be eventually consistent for the sake of speed.
+  </div>
+</div>
+
+<script>
+/* ============ SHARED HELPERS ============ */
+function drawDashedLine(svg, x1,y1,x2,y2,color,opacity){
+  const ns='http://www.w3.org/2000/svg';
+  const l=document.createElementNS(ns,'line');
+  l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+  l.setAttribute('stroke',color);l.setAttribute('stroke-width','1.5');
+  l.setAttribute('stroke-dasharray','4 4');l.setAttribute('opacity',opacity||'0.35');
+  svg.appendChild(l);
+}
+function movePacket(container, from, to, color){
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = reduceMotion ? 0 : 320;
+  const p = document.createElement('div');
+  p.className = 'packet';
+  p.style.background = color || '#2DD4BF';
+  container.appendChild(p);
+  p.style.left=(from.x-3)+'px'; p.style.top=(from.y-3)+'px';
+  p.style.transition = `left ${dur}ms linear, top ${dur}ms linear`;
+  requestAnimationFrame(()=>{ p.style.left=(to.x-3)+'px'; p.style.top=(to.y-3)+'px'; });
+  setTimeout(()=>{ p.style.opacity='0'; setTimeout(()=>p.remove(),150); }, dur);
+  return dur;
+}
+
+/* ============ SCENE A ============ */
+(function(){
+  const stage = document.getElementById('aStage');
+  const lines = document.getElementById('aLines');
+  let strong = false;
+  let latestVersion = 0;
+  let staleCount = 0;
+  const replicas = { r1:{version:0}, r2:{version:0}, r3:{version:0} };
+  const nodeEls = {};
+
+  function positions(w,h){
+    return {
+      client: {x:40, y:h/2},
+      primary: {x:w*0.32, y:h/2},
+      r1: {x:w*0.82, y:h*0.2},
+      r2: {x:w*0.82, y:h*0.5},
+      r3: {x:w*0.82, y:h*0.8},
+    };
+  }
+
+  function build(){
+    stage.querySelectorAll('.anode').forEach(n=>n.remove());
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const pos = positions(w,h);
+    Object.keys(pos).forEach(key=>{
+      const el = document.createElement('div');
+      el.className = 'anode' + (key==='client'?' client':'');
+      el.style.left = pos[key].x+'px';
+      el.style.top = pos[key].y+'px';
+      if(key==='client'){
+        el.innerHTML = '<div>◆</div><div>client</div>';
+      } else if(key==='primary'){
+        el.innerHTML = '<div>primary</div><div class="ver">v0</div>';
+      } else {
+        el.innerHTML = `<div>${key}</div><div class="ver">v0</div>`;
+      }
+      stage.appendChild(el);
+      nodeEls[key] = el;
+    });
+    drawLines(pos);
+  }
+
+  function drawLines(pos){
+    lines.innerHTML = '';
+    drawDashedLine(lines, pos.client.x, pos.client.y, pos.primary.x, pos.primary.y, '#8996AC');
+    ['r1','r2','r3'].forEach(r=>drawDashedLine(lines, pos.primary.x, pos.primary.y, pos[r].x, pos[r].y, '#8996AC'));
+  }
+
+  function updateSyncCount(){
+    const inSync = Object.values(replicas).filter(r=>r.version===latestVersion).length;
+    document.getElementById('aSyncVal').textContent = `${inSync} / 3`;
+    document.getElementById('aSyncVal').className = 'm-val ' + (inSync===3 ? 'good' : 'danger');
+  }
+
+  function doWrite(){
+    document.getElementById('aWriteBtn').disabled = true;
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const pos = positions(w,h);
+    const t0 = performance.now();
+    movePacket(stage, pos.client, pos.primary, '#2DD4BF');
+    setTimeout(()=>{
+      latestVersion++;
+      nodeEls.primary.querySelector('.ver').textContent = 'v'+latestVersion;
+      document.getElementById('aLatestVal').textContent = 'v'+latestVersion;
+
+      ['r1','r2','r3'].forEach(r=>{
+        const delay = strong ? (600+Math.random()*200) : (700+Math.random()*1500);
+        nodeEls[r].classList.add('syncing');
+        movePacket(stage, pos.primary, pos[r], strong ? '#F5A623' : '#2DD4BF');
+        setTimeout(()=>{
+          replicas[r].version = latestVersion;
+          nodeEls[r].querySelector('.ver').textContent = 'v'+latestVersion;
+          nodeEls[r].classList.remove('syncing');
+          nodeEls[r].classList.add('fresh-flash');
+          setTimeout(()=>nodeEls[r].classList.remove('fresh-flash'),300);
+          updateSyncCount();
+          if(strong) checkStrongDone();
+        }, delay);
+      });
+
+      if(!strong){
+        const latency = performance.now()-t0;
+        document.getElementById('aLatencyVal').textContent = Math.round(latency)+'ms';
+        document.getElementById('aWriteBtn').disabled = false;
+      }
+    }, 320);
+
+    function checkStrongDone(){
+      const allSynced = Object.values(replicas).every(r=>r.version===latestVersion);
+      if(allSynced){
+        const latency = performance.now()-t0;
+        document.getElementById('aLatencyVal').textContent = Math.round(latency)+'ms';
+        document.getElementById('aWriteBtn').disabled = false;
+      }
+    }
+  }
+
+  function readFrom(r){
+    const el = nodeEls[r];
+    const isStale = replicas[r].version < latestVersion;
+    const lbl = document.createElement('div');
+    lbl.className = 'rlabel ' + (isStale ? 'stale' : 'ok');
+    lbl.textContent = isStale ? `STALE (v${replicas[r].version})` : 'FRESH';
+    el.appendChild(lbl);
+    el.classList.toggle('stale', isStale);
+    setTimeout(()=>{ lbl.remove(); el.classList.remove('stale'); }, 1400);
+    if(isStale){
+      staleCount++;
+      document.getElementById('aStaleVal').textContent = staleCount;
+    }
+  }
+
+  document.getElementById('aWriteBtn').addEventListener('click', doWrite);
+  document.getElementById('aReadR1').addEventListener('click', ()=>readFrom('r1'));
+  document.getElementById('aReadR2').addEventListener('click', ()=>readFrom('r2'));
+  document.getElementById('aReadR3').addEventListener('click', ()=>readFrom('r3'));
+  document.getElementById('aModeSwitch').addEventListener('click', function(){
+    strong = !strong;
+    this.classList.toggle('on', strong);
+    document.getElementById('aModeVal').textContent = strong ? 'Strong (synchronous)' : 'Eventual (async)';
+  });
+
+  build();
+  window.addEventListener('resize', build);
+})();
+
+/* ============ SCENE B ============ */
+(function(){
+  const stage = document.getElementById('bStage');
+  const lines = document.getElementById('bLines');
+  let N=5, W=3, R=3;
+  let latestVersion = 0;
+  let writes=0, reads=0, stale=0;
+  let nodes = [];
+
+  function buildNodes(){
+    nodes = [];
+    for(let i=0;i<N;i++) nodes.push({version:0});
+  }
+
+  function layout(){
+    stage.querySelectorAll('.bnode').forEach(n=>n.remove());
+    lines.innerHTML='';
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const cx = w/2, cy = h/2, radius = Math.min(w,h)/2 - 50;
+    const els = [];
+    for(let i=0;i<N;i++){
+      const angle = (i/N)*Math.PI*2 - Math.PI/2;
+      const x = cx + radius*Math.cos(angle);
+      const y = cy + radius*Math.sin(angle);
+      const el = document.createElement('div');
+      el.className = 'bnode' + (nodes[i].version===latestVersion && latestVersion>0 ? ' updated' : '');
+      el.innerHTML = `<div>node ${i+1}</div><div class="ver">v${nodes[i].version}</div>`;
+      el.style.left = x+'px'; el.style.top = y+'px';
+      stage.appendChild(el);
+      els.push(el);
+      drawDashedLine(lines, cx, cy, x, y, '#22304A', 0.5);
+    }
+    stage._nodeEls = els;
+  }
+
+  function refreshNodeLabels(){
+    const els = stage._nodeEls;
+    nodes.forEach((n,i)=>{
+      els[i].querySelector('.ver').textContent = 'v'+n.version;
+      els[i].classList.toggle('updated', n.version===latestVersion && latestVersion>0);
+    });
+  }
+
+  function updateBanner(){
+    const banner = document.getElementById('bBanner');
+    const sum = W+R;
+    if(sum > N){
+      banner.className = 'guarantee-banner good';
+      banner.textContent = `W + R = ${sum} > N = ${N} → every read is guaranteed fresh`;
+    } else {
+      banner.className = 'guarantee-banner warn';
+      banner.textContent = `W + R = ${sum} ≤ N = ${N} → a read quorum can miss the latest write — stale reads are possible`;
+    }
+  }
+
+  function pickRandom(count){
+    const idx = [...Array(N).keys()];
+    for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [idx[i],idx[j]]=[idx[j],idx[i]]; }
+    return idx.slice(0,count);
+  }
+
+  function doWrite(){
+    latestVersion++;
+    writes++;
+    const chosen = pickRandom(W);
+    chosen.forEach(i=>{ nodes[i].version = latestVersion; });
+    refreshNodeLabels();
+    const els = stage._nodeEls;
+    chosen.forEach(i=>{
+      els[i].classList.add('selected-write');
+      setTimeout(()=>els[i].classList.remove('selected-write'), 900);
+    });
+    document.getElementById('bWritesVal').textContent = writes;
+    document.getElementById('bReadResult').textContent = `Wrote v${latestVersion} to ${W} of ${N} replicas: node ${chosen.map(i=>i+1).sort((a,b)=>a-b).join(', ')}.`;
+  }
+
+  function doRead(){
+    reads++;
+    const chosen = pickRandom(R);
+    const els = stage._nodeEls;
+    chosen.forEach(i=>{
+      els[i].classList.add('selected-read');
+      setTimeout(()=>els[i].classList.remove('selected-read'), 900);
+    });
+    const maxSeen = Math.max(...chosen.map(i=>nodes[i].version));
+    const isStale = maxSeen < latestVersion;
+    document.getElementById('bReadsVal').textContent = reads;
+    const resultEl = document.getElementById('bReadResult');
+    if(isStale){
+      stale++;
+      document.getElementById('bStaleVal').textContent = stale;
+      resultEl.innerHTML = `Read quorum [${chosen.map(i=>i+1).sort((a,b)=>a-b).join(', ')}] returned <b class="stale">v${maxSeen} — STALE</b> (latest is v${latestVersion})`;
+    } else {
+      resultEl.innerHTML = `Read quorum [${chosen.map(i=>i+1).sort((a,b)=>a-b).join(', ')}] returned <b class="ok">v${maxSeen} — fresh</b>`;
+    }
+  }
+
+  function reset(){
+    latestVersion=0; writes=0; reads=0; stale=0;
+    buildNodes(); layout();
+    document.getElementById('bWritesVal').textContent='0';
+    document.getElementById('bReadsVal').textContent='0';
+    document.getElementById('bStaleVal').textContent='0';
+    document.getElementById('bReadResult').textContent='Try a write, then a read.';
+    updateBanner();
+  }
+
+  document.getElementById('bN').addEventListener('input', e=>{
+    N = parseInt(e.target.value);
+    document.getElementById('bNVal').textContent = N;
+    const wSlider = document.getElementById('bW'), rSlider = document.getElementById('bR');
+    wSlider.max = N; rSlider.max = N;
+    if(W>N){ W=N; wSlider.value=N; document.getElementById('bWVal').textContent=N; }
+    if(R>N){ R=N; rSlider.value=N; document.getElementById('bRVal').textContent=N; }
+    reset();
+  });
+  document.getElementById('bW').addEventListener('input', e=>{
+    W = parseInt(e.target.value);
+    document.getElementById('bWVal').textContent = W;
+    updateBanner();
+  });
+  document.getElementById('bR').addEventListener('input', e=>{
+    R = parseInt(e.target.value);
+    document.getElementById('bRVal').textContent = R;
+    updateBanner();
+  });
+  document.getElementById('bWriteBtn').addEventListener('click', doWrite);
+  document.getElementById('bReadBtn').addEventListener('click', doRead);
+  document.getElementById('bResetBtn').addEventListener('click', reset);
+
+  buildNodes(); layout(); updateBanner();
+  window.addEventListener('resize', layout);
+})();
+
+/* ============ SCENE C ============ */
+(function(){
+  let partitioned = false;
+  let mode = 'CP';
+  let valA = 'A', valB = 'A';
+  let tA = 0, tB = 0, tick = 1;
+  let rejected=0, conflicts=0, resolved=0;
+  let diverged = false;
+
+  const nodeA = document.getElementById('cNodeA');
+  const nodeB = document.getElementById('cNodeB');
+  const valAEl = document.getElementById('cValA');
+  const valBEl = document.getElementById('cValB');
+  const toast = document.getElementById('cToast');
+
+  function setToast(msg){ toast.textContent = msg; }
+
+  function nextVal(){
+    const letters = 'BCDEFGHJKLMNPQR';
+    return letters[Math.floor(Math.random()*letters.length)];
+  }
+
+  function writeSide(side){
+    if(!partitioned){
+      const v = nextVal();
+      valA = v; valB = v;
+      valAEl.textContent = `"${v}"`; valBEl.textContent = `"${v}"`;
+      setToast(`Wrote "${v}" — replicated to both sides normally (no partition).`);
+      return;
+    }
+    if(mode === 'CP'){
+      rejected++;
+      document.getElementById('cRejectedVal').textContent = rejected;
+      const el = side==='A' ? nodeA : nodeB;
+      el.classList.add('rejected');
+      setTimeout(()=>el.classList.remove('rejected'), 500);
+      setToast(`503 Unavailable — ${side==='A'?'US-EAST':'EU-WEST'} refused the write to avoid risking inconsistency.`);
+    } else {
+      const v = nextVal();
+      tick++;
+      if(side==='A'){ valA = v; tA = tick; valAEl.textContent = `"${v}"`; }
+      else { valB = v; tB = tick; valBEl.textContent = `"${v}"`; }
+      if(valA !== valB){
+        diverged = true;
+        nodeA.classList.add('diverged'); nodeB.classList.add('diverged');
+        conflicts++;
+        document.getElementById('cConflictVal').textContent = conflicts;
+        setToast(`Accepted locally on ${side==='A'?'US-EAST':'EU-WEST'} — but the two sides now disagree: "${valA}" vs "${valB}".`);
+      } else {
+        setToast(`Accepted locally on ${side==='A'?'US-EAST':'EU-WEST'}. Sides still match for now.`);
+      }
+    }
+  }
+
+  function heal(){
+    if(partitioned){
+      document.getElementById('cPartitionSwitch').click();
+    }
+    if(diverged){
+      const winner = tB > tA ? valB : valA;
+      const winSide = tB > tA ? 'EU-WEST' : 'US-EAST';
+      valA = winner; valB = winner;
+      valAEl.textContent = `"${winner}"`; valBEl.textContent = `"${winner}"`;
+      nodeA.classList.remove('diverged'); nodeB.classList.remove('diverged');
+      diverged = false;
+      resolved++;
+      document.getElementById('cResolvedVal').textContent = resolved;
+      setToast(`Partition healed. Conflict resolved via last-write-wins — "${winner}" (from ${winSide}) kept, the other discarded.`);
+    } else {
+      setToast('Partition healed. Both sides already agreed.');
+    }
+  }
+
+  document.getElementById('cPartitionSwitch').addEventListener('click', function(){
+    partitioned = !partitioned;
+    this.classList.toggle('on', partitioned);
+    document.getElementById('cNetVal').textContent = partitioned ? 'Partitioned' : 'Connected';
+    document.getElementById('cDot').classList.toggle('bad', partitioned);
+    document.getElementById('cLink').classList.toggle('broken', partitioned);
+    document.getElementById('cLinkX').classList.toggle('show', partitioned);
+    if(partitioned) setToast('Network partitioned. Try writing on each side.');
+  });
+
+  document.getElementById('cModeSeg').addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    mode = btn.dataset.mode;
+    document.querySelectorAll('#cModeSeg button').forEach(b=>b.classList.toggle('active', b===btn));
+    document.getElementById('cModeVal').textContent = mode==='CP' ? 'CP — consistency first' : 'AP — availability first';
+  });
+
+  document.getElementById('cWriteABtn').addEventListener('click', ()=>writeSide('A'));
+  document.getElementById('cWriteBBtn').addEventListener('click', ()=>writeSide('B'));
+  document.getElementById('cHealBtn').addEventListener('click', heal);
+  document.getElementById('cResetBtn').addEventListener('click', ()=>{
+    partitioned=false; diverged=false; valA='A'; valB='A'; tA=0; tB=0; tick=1;
+    rejected=0; conflicts=0; resolved=0;
+    valAEl.textContent='"A"'; valBEl.textContent='"A"';
+    nodeA.classList.remove('diverged','rejected'); nodeB.classList.remove('diverged','rejected');
+    document.getElementById('cPartitionSwitch').classList.remove('on');
+    document.getElementById('cNetVal').textContent='Connected';
+    document.getElementById('cDot').classList.remove('bad');
+    document.getElementById('cLink').classList.remove('broken');
+    document.getElementById('cLinkX').classList.remove('show');
+    document.getElementById('cRejectedVal').textContent='0';
+    document.getElementById('cConflictVal').textContent='0';
+    document.getElementById('cResolvedVal').textContent='0';
+    setToast('Both sides agree. Try partitioning the network, then writing on each side.');
+  });
+})();
+</script>
+</body>
+</html>

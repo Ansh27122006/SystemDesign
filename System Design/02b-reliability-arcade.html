@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reliability Arcade — System Design Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1a; --panel:#121a2c; --panel-light:#182234; --line:#243050;
+    --text:#e8edf5; --muted:#8b98b3;
+    --up:#35d399; --up-dim:#1d5c46;
+    --down:#ff5470; --down-dim:#6b2532;
+    --warn:#ffb020; --warn-dim:#7a5713;
+    --accent:#4c8dff;
+    --reliable:#a78bfa; --reliable-dim:#4c3d80;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  ::selection{background:var(--reliable);color:#0a0f1a;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 120px;}
+
+  header{padding:64px 24px 36px;text-align:center;position:relative;overflow:hidden;}
+  header::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 20% 20%, rgba(167,139,250,0.14), transparent 45%),
+               radial-gradient(circle at 85% 5%, rgba(255,84,112,0.08), transparent 45%);
+    pointer-events:none;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:var(--reliable);
+    text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;
+    background:rgba(167,139,250,0.08);border:1px solid var(--reliable-dim);padding:6px 14px;border-radius:999px;}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--reliable);box-shadow:0 0 8px var(--reliable);animation:blink 1.6s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+  h1.title{font-size:clamp(40px,7.5vw,72px);margin:20px 0 8px;font-weight:700;letter-spacing:-0.02em;}
+  header p.sub{color:var(--muted);font-size:17px;max-width:620px;margin:0 auto;line-height:1.55;}
+
+  section{margin-top:68px;}
+  .section-head{margin-bottom:26px;}
+  .section-head .tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--reliable);letter-spacing:.12em;text-transform:uppercase;}
+  .section-head h2{font-family:'Space Grotesk',sans-serif;font-size:28px;margin:6px 0 10px;}
+  .section-head p{color:var(--muted);font-size:15.5px;line-height:1.6;max-width:700px;}
+
+  .panel{background:linear-gradient(180deg, var(--panel), var(--panel-light));border:1px solid var(--line);border-radius:16px;padding:28px;}
+
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;padding:10px 18px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel-light);color:var(--text);cursor:pointer;transition:all .15s ease;}
+  button:hover{border-color:var(--reliable);transform:translateY(-1px);}
+  button.primary{background:var(--reliable);border-color:var(--reliable);color:#0a0f1a;}
+  button.primary:hover{filter:brightness(1.1);}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center;}
+  input[type=range]{width:100%;accent-color:var(--reliable);}
+  .slider-block{margin-bottom:16px;}
+  .slider-block label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px;}
+
+  /* RECAP */
+  .analogy{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:700px){.analogy{grid-template-columns:1fr;}}
+  .analogy-card{border-radius:14px;padding:16px 18px;font-size:13.5px;line-height:1.5;}
+  .analogy-card.avail{background:rgba(53,211,153,.06);border:1px solid var(--up-dim);}
+  .analogy-card.rel{background:rgba(167,139,250,.08);border:1px solid var(--reliable-dim);}
+  .analogy-card b{display:block;font-family:'Space Grotesk',sans-serif;font-size:14px;margin-bottom:4px;}
+  .analogy-card.avail b{color:var(--up);}
+  .analogy-card.rel b{color:var(--reliable);}
+
+  /* REQUEST ROULETTE */
+  .runway{position:relative;height:110px;background:var(--panel-light);border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden;}
+  .runway .client, .runway .server{position:absolute;top:50%;transform:translateY(-50%);font-size:34px;}
+  .runway .client{left:14px;} .runway .server{right:14px;}
+  .req-ball{position:absolute;top:calc(50% - 7px);width:14px;height:14px;border-radius:50%;background:var(--reliable);
+    box-shadow:0 0 8px var(--reliable);transition:left 0.65s cubic-bezier(.4,0,.2,1);}
+  .req-ball.ok{background:var(--up);box-shadow:0 0 10px var(--up);}
+  .req-ball.bad{background:var(--down);box-shadow:0 0 10px var(--down);}
+  .combo-toast{position:absolute;top:8px;left:50%;transform:translateX(-50%);
+    font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--warn);background:rgba(255,176,32,.12);
+    border:1px solid var(--warn-dim);padding:4px 12px;border-radius:999px;opacity:0;transition:opacity .3s ease;}
+  .combo-toast.show{opacity:1;}
+
+  .scoreboard{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:18px;}
+  @media(max-width:700px){.scoreboard{grid-template-columns:repeat(2,1fr);}}
+  .score-box{background:var(--panel-light);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;}
+  .score-box .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .score-box .v{font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:700;margin-top:3px;}
+
+  /* CASCADE / CIRCUIT BREAKER */
+  .chain-row{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin:20px 0;}
+  .chain-node{width:64px;height:64px;border-radius:14px;background:var(--panel-light);border:2px solid var(--up-dim);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;transition:border-color .3s ease, background .3s ease;}
+  .chain-node .lbl{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;}
+  .chain-node.fail{border-color:var(--down);background:rgba(255,84,112,.12);animation:shakeChain .3s;}
+  @keyframes shakeChain{0%,100%{transform:translateX(0);}25%{transform:translateX(-4px);}75%{transform:translateX(4px);}}
+  .chain-link{width:26px;height:3px;background:var(--line);position:relative;transition:background .3s ease;}
+  .chain-link.hot{background:var(--down);}
+  .breaker{width:44px;height:64px;border-radius:10px;background:var(--panel-light);border:2px dashed var(--warn-dim);
+    display:flex;align-items:center;justify-content:center;font-size:20px;transition:all .3s ease;}
+  .breaker.tripped{border-style:solid;border-color:var(--warn);background:rgba(255,176,32,.15);animation:tripFlash .4s;}
+  @keyframes tripFlash{0%,100%{transform:scale(1);}50%{transform:scale(1.15);}}
+  .cascade-result{margin-top:16px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:13.5px;padding:12px;border-radius:10px;min-height:20px;}
+  .cascade-result.dead{background:rgba(255,84,112,.08);border:1px solid var(--down-dim);color:var(--down);}
+  .cascade-result.saved{background:rgba(255,176,32,.08);border:1px solid var(--warn-dim);color:var(--warn);}
+  .checkbox-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;font-size:13.5px;color:var(--muted);}
+
+  /* REDUNDANCY DICE */
+  .dice-row{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:20px 0;}
+  .die{width:64px;height:64px;border-radius:12px;background:var(--panel-light);border:2px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:26px;transition:transform .15s ease, border-color .2s ease, background .2s ease;}
+  .die.rolling{animation:diceSpin .5s ease;}
+  @keyframes diceSpin{0%{transform:rotateY(0);}100%{transform:rotateY(360deg);}}
+  .die.pass{border-color:var(--up);background:rgba(53,211,153,.12);}
+  .die.fail{border-color:var(--down);background:rgba(255,84,112,.12);}
+  .compare-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+  @media(max-width:600px){.compare-row{grid-template-columns:1fr;}}
+  .compare-box{background:var(--panel-light);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center;}
+  .compare-box .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .compare-box .v{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;margin-top:6px;color:var(--reliable);}
+  .trial-log{margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);text-align:center;min-height:18px;}
+
+  /* QUIZ / CHALLENGE */
+  .quiz-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px;}
+  .quiz-q{font-weight:600;margin-bottom:12px;}
+  .quiz-opts{display:grid;gap:8px;}
+  .quiz-opt{border:1px solid var(--line);background:var(--panel-light);padding:10px 14px;border-radius:8px;cursor:pointer;font-size:14px;transition:all .15s ease;}
+  .quiz-opt:hover{border-color:var(--reliable);}
+  .quiz-opt.correct{border-color:var(--up);background:rgba(53,211,153,.1);color:var(--up);}
+  .quiz-opt.wrong{border-color:var(--down);background:rgba(255,84,112,.1);color:var(--down);}
+  .score-banner{text-align:center;font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--reliable);
+    background:rgba(167,139,250,.08);border:1px solid var(--reliable-dim);border-radius:12px;padding:16px;margin-bottom:20px;}
+
+  footer{text-align:center;margin-top:80px;color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="eyebrow"><span class="dot"></span>System Design Lab · Characteristic 2 of 8 · Arcade Edition</span>
+  <h1 class="title display">Reliability</h1>
+  <p class="sub">Three hands-on mini-games that make correctness-under-failure click — fire requests, trigger a cascading outage, and stack redundancy to beat the odds.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- QUICK RECAP -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Recap</div>
+      <h2 class="display">Available ≠ Reliable</h2>
+    </div>
+    <div class="analogy">
+      <div class="analogy-card avail"><b>Availability</b>Always picks up the phone — but sometimes gives you wrong directions.</div>
+      <div class="analogy-card rel"><b>Reliability</b>Sometimes doesn't pick up — but when it does, it's never wrong.</div>
+    </div>
+  </section>
+
+  <!-- GAME 1: REQUEST ROULETTE -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 1 · Request Roulette</div>
+      <h2 class="display">Fire requests, watch reliability play out</h2>
+      <p>Set a reliability percentage, then fire a burst of requests. Each one independently succeeds or fails based on that percentage — watch how even "pretty good" reliability produces a visible trail of failures at volume.</p>
+    </div>
+    <div class="panel">
+      <div class="slider-block">
+        <label>Server reliability: <span id="roulettePctVal" class="mono">90</span>%</label>
+        <input type="range" id="roulettePct" min="50" max="100" value="90">
+      </div>
+      <div class="runway" id="runway">
+        <div class="client">🧑‍💻</div>
+        <div class="server">🖥️</div>
+        <div class="combo-toast" id="comboToast">🔥 streak!</div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="fireBtn">🔥 Fire 30 requests</button>
+        <button id="resetRouletteBtn">↻ Reset</button>
+      </div>
+      <div class="scoreboard">
+        <div class="score-box"><div class="k">Fired</div><div class="v" id="firedVal">0</div></div>
+        <div class="score-box"><div class="k">Success</div><div class="v" id="successVal" style="color:var(--up);">0</div></div>
+        <div class="score-box"><div class="k">Failed</div><div class="v" id="failVal" style="color:var(--down);">0</div></div>
+        <div class="score-box"><div class="k">Live rate</div><div class="v" id="rateVal">—</div></div>
+        <div class="score-box"><div class="k">Best streak</div><div class="v" id="streakVal" style="color:var(--warn);">0</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME 2: CASCADING FAILURE -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 2 · Cascading Failure</div>
+      <h2 class="display">One failure, five services, total meltdown?</h2>
+      <p>Service A calls B calls C calls D calls E. Trigger a failure in A and watch it ripple downstream — then flip on a circuit breaker and watch it get stopped cold.</p>
+    </div>
+    <div class="panel">
+      <div class="chain-row" id="chainRow"></div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="breakerToggle"> <label for="breakerToggle">Enable circuit breaker (sits after service B)</label>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="triggerCascadeBtn">💥 Trigger failure in service A</button>
+        <button id="resetCascadeBtn">↻ Reset chain</button>
+      </div>
+      <div class="cascade-result" id="cascadeResult"></div>
+    </div>
+  </section>
+
+  <!-- GAME 3: REDUNDANCY DICE -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Game 3 · Redundancy Compounding</div>
+      <h2 class="display">Why backups multiply reliability</h2>
+      <p>Each replica below independently succeeds with probability <span class="mono">p</span>. The whole system only fails if <em>every single one</em> fails at once. Watch how fast that gets astronomically unlikely.</p>
+    </div>
+    <div class="panel">
+      <div class="slider-block">
+        <label>Replicas: <span id="nVal" class="mono">3</span></label>
+        <input type="range" id="nSlider" min="1" max="6" value="3">
+      </div>
+      <div class="slider-block">
+        <label>Individual replica reliability: <span id="pVal" class="mono">80</span>%</label>
+        <input type="range" id="pSlider" min="50" max="99" value="80">
+      </div>
+      <div class="dice-row" id="diceRow"></div>
+      <div class="btn-row">
+        <button class="primary" id="rollBtn">🎲 Roll 20 trials</button>
+        <button id="resetDiceBtn">↻ Reset trials</button>
+      </div>
+      <div class="trial-log" id="trialLog"></div>
+      <div class="compare-row">
+        <div class="compare-box"><div class="k">Theoretical combined reliability</div><div class="v" id="theoreticalVal">99.2%</div></div>
+        <div class="compare-box"><div class="k">Empirical result (this run)</div><div class="v" id="empiricalVal">—</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHALLENGE QUIZ -->
+  <section>
+    <div class="section-head">
+      <div class="tag">Final Challenge</div>
+      <h2 class="display">Score the room</h2>
+      <p>Cold-call these — track the class score as you go.</p>
+    </div>
+    <div class="score-banner">Score: <span id="quizScore">0</span> / 4</div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q1. In the Request Roulette game, if reliability is 90% and you fire 30 requests, roughly how many should fail?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">0 — 90% is basically perfect</div>
+        <div class="quiz-opt" data-correct="true">About 3 — 10% of 30 requests fail on average</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q2. In the cascade game, what does the circuit breaker actually do?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">It repairs the failed service automatically</div>
+        <div class="quiz-opt" data-correct="true">It stops calls from propagating further downstream once a failure is detected</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q3. With 3 replicas each at 80% reliability, why is the combined system reliability so much higher than 80%?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Because 80% × 3 = 240%, capped at 100%</div>
+        <div class="quiz-opt" data-correct="true">Because the system only fails if ALL 3 independently fail at once — a much rarer event</div>
+      </div>
+    </div>
+
+    <div class="quiz-card">
+      <div class="quiz-q">Q4. Which of these best improves reliability rather than availability?</div>
+      <div class="quiz-opts">
+        <div class="quiz-opt" data-correct="false">Adding more servers behind a load balancer to handle more traffic</div>
+        <div class="quiz-opt" data-correct="true">Adding checksums and majority-vote reads to catch corrupted data</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>reliability.arcade — up next: scalability →</footer>
+
+<script>
+/* ============ GAME 1: REQUEST ROULETTE ============ */
+const roulettePct = document.getElementById('roulettePct');
+const roulettePctVal = document.getElementById('roulettePctVal');
+const runway = document.getElementById('runway');
+const fireBtn = document.getElementById('fireBtn');
+const resetRouletteBtn = document.getElementById('resetRouletteBtn');
+const firedVal = document.getElementById('firedVal');
+const successVal = document.getElementById('successVal');
+const failVal = document.getElementById('failVal');
+const rateVal = document.getElementById('rateVal');
+const streakVal = document.getElementById('streakVal');
+const comboToast = document.getElementById('comboToast');
+
+roulettePct.addEventListener('input', () => roulettePctVal.textContent = roulettePct.value);
+
+let fired=0, success=0, failed=0, curStreak=0, bestStreak=0;
+
+function resetRoulette(){
+  fired=0; success=0; failed=0; curStreak=0; bestStreak=0;
+  firedVal.textContent='0'; successVal.textContent='0'; failVal.textContent='0';
+  rateVal.textContent='—'; streakVal.textContent='0';
+  Array.from(runway.querySelectorAll('.req-ball')).forEach(b=>b.remove());
+}
+resetRouletteBtn.addEventListener('click', resetRoulette);
+
+fireBtn.addEventListener('click', () => {
+  fireBtn.disabled = true;
+  const p = parseInt(roulettePct.value)/100;
+  const total = 30;
+  for(let i=0;i<total;i++){
+    setTimeout(()=>launchBall(p, i===total-1), i*140);
+  }
+  setTimeout(()=>{ fireBtn.disabled=false; }, total*140 + 800);
+});
+
+function launchBall(p, isLast){
+  const ball = document.createElement('div');
+  ball.className = 'req-ball';
+  ball.style.left = '54px';
+  runway.appendChild(ball);
+  requestAnimationFrame(()=> ball.style.left = 'calc(100% - 70px)');
+  setTimeout(()=>{
+    const ok = Math.random() < p;
+    ball.classList.add(ok?'ok':'bad');
+    fired++; firedVal.textContent = fired;
+    if(ok){ success++; successVal.textContent=success; curStreak++; bestStreak=Math.max(bestStreak,curStreak); }
+    else { failed++; failVal.textContent=failed; curStreak=0; }
+    streakVal.textContent = bestStreak;
+    rateVal.textContent = ((success/fired)*100).toFixed(1)+'%';
+    if(curStreak>0 && curStreak%5===0){
+      comboToast.textContent = '🔥 ' + curStreak + ' in a row!';
+      comboToast.classList.add('show');
+      setTimeout(()=>comboToast.classList.remove('show'), 900);
+    }
+    setTimeout(()=>ball.remove(), 500);
+  }, 650);
+}
+
+/* ============ GAME 2: CASCADING FAILURE ============ */
+const chainRow = document.getElementById('chainRow');
+const breakerToggle = document.getElementById('breakerToggle');
+const triggerCascadeBtn = document.getElementById('triggerCascadeBtn');
+const resetCascadeBtn = document.getElementById('resetCascadeBtn');
+const cascadeResult = document.getElementById('cascadeResult');
+
+const SERVICES = ['A','B','C','D','E'];
+function buildChain(){
+  chainRow.innerHTML = '';
+  SERVICES.forEach((s,i)=>{
+    const node = document.createElement('div');
+    node.className = 'chain-node';
+    node.id = 'svc-'+s;
+    node.innerHTML = '⚙️<div class="lbl">service '+s+'</div>';
+    chainRow.appendChild(node);
+    if(i < SERVICES.length-1){
+      if(i === 1){
+        const br = document.createElement('div');
+        br.className = 'breaker';
+        br.id = 'breakerNode';
+        br.textContent = '🛡️';
+        chainRow.appendChild(br);
+      } else {
+        const link = document.createElement('div');
+        link.className = 'chain-link';
+        link.id = 'link-'+i;
+        chainRow.appendChild(link);
+      }
+    }
+  });
+}
+buildChain();
+
+function resetChain(){
+  SERVICES.forEach(s=> document.getElementById('svc-'+s).classList.remove('fail'));
+  document.querySelectorAll('.chain-link').forEach(l=>l.classList.remove('hot'));
+  const br = document.getElementById('breakerNode');
+  if(br) br.classList.remove('tripped');
+  cascadeResult.textContent = '';
+  cascadeResult.className = 'cascade-result';
+}
+resetCascadeBtn.addEventListener('click', resetChain);
+
+triggerCascadeBtn.addEventListener('click', () => {
+  resetChain();
+  triggerCascadeBtn.disabled = true;
+  const breakerOn = breakerToggle.checked;
+  let step = 0;
+  const order = ['A','B','C','D','E'];
+  function propagate(idx){
+    if(idx >= order.length){ triggerCascadeBtn.disabled=false; return; }
+    const svc = order[idx];
+    document.getElementById('svc-'+svc).classList.add('fail');
+    // if breaker enabled and we just failed B, trip breaker and stop
+    if(breakerOn && svc === 'B'){
+      setTimeout(()=>{
+        const br = document.getElementById('breakerNode');
+        br.classList.add('tripped');
+        cascadeResult.textContent = '🛡️ Circuit breaker tripped after service B — C, D, and E were isolated and kept working normally.';
+        cascadeResult.className = 'cascade-result saved';
+        triggerCascadeBtn.disabled = false;
+      }, 500);
+      return;
+    }
+    if(idx === order.length-1){
+      setTimeout(()=>{
+        cascadeResult.textContent = '💀 TOTAL SYSTEM FAILURE — one failure in A took down the entire chain, all the way to E.';
+        cascadeResult.className = 'cascade-result dead';
+        triggerCascadeBtn.disabled = false;
+      }, 400);
+      return;
+    }
+    setTimeout(()=>{
+      const linkId = 'link-'+idx;
+      const link = document.getElementById(linkId);
+      if(link) link.classList.add('hot');
+      setTimeout(()=>propagate(idx+1), 350);
+    }, 400);
+  }
+  propagate(0);
+});
+
+/* ============ GAME 3: REDUNDANCY DICE ============ */
+const nSlider = document.getElementById('nSlider');
+const pSlider = document.getElementById('pSlider');
+const nVal = document.getElementById('nVal');
+const pVal = document.getElementById('pVal');
+const diceRow = document.getElementById('diceRow');
+const rollBtn = document.getElementById('rollBtn');
+const resetDiceBtn = document.getElementById('resetDiceBtn');
+const trialLog = document.getElementById('trialLog');
+const theoreticalVal = document.getElementById('theoreticalVal');
+const empiricalVal = document.getElementById('empiricalVal');
+
+let empiricalSuccesses = 0, empiricalTrials = 0;
+
+function buildDice(){
+  const n = parseInt(nSlider.value);
+  diceRow.innerHTML = '';
+  for(let i=0;i<n;i++){
+    const d = document.createElement('div');
+    d.className = 'die';
+    d.textContent = '🎲';
+    diceRow.appendChild(d);
+  }
+}
+
+function updateTheoretical(){
+  const n = parseInt(nSlider.value);
+  const p = parseInt(pSlider.value)/100;
+  const combined = (1 - Math.pow(1-p, n)) * 100;
+  theoreticalVal.textContent = combined.toFixed(2) + '%';
+}
+
+nSlider.addEventListener('input', ()=>{ nVal.textContent = nSlider.value; buildDice(); updateTheoretical(); resetTrials(); });
+pSlider.addEventListener('input', ()=>{ pVal.textContent = pSlider.value; updateTheoretical(); resetTrials(); });
+
+function resetTrials(){
+  empiricalSuccesses=0; empiricalTrials=0;
+  empiricalVal.textContent = '—';
+  trialLog.textContent = '';
+  Array.from(diceRow.children).forEach(d=>{ d.classList.remove('pass','fail','rolling'); });
+}
+resetDiceBtn.addEventListener('click', resetTrials);
+
+rollBtn.addEventListener('click', () => {
+  rollBtn.disabled = true;
+  const p = parseInt(pSlider.value)/100;
+  const dice = Array.from(diceRow.children);
+  let trial = 0;
+  const totalTrials = 20;
+  function runTrial(){
+    if(trial >= totalTrials){ rollBtn.disabled=false; return; }
+    dice.forEach(d=>{ d.classList.remove('pass','fail'); d.classList.add('rolling'); });
+    setTimeout(()=>{
+      let anyPass = false;
+      dice.forEach(d=>{
+        const ok = Math.random() < p;
+        if(ok) anyPass = true;
+        d.classList.remove('rolling');
+        d.classList.add(ok?'pass':'fail');
+      });
+      empiricalTrials++;
+      if(anyPass) empiricalSuccesses++;
+      empiricalVal.textContent = ((empiricalSuccesses/empiricalTrials)*100).toFixed(1)+'%';
+      trialLog.textContent = 'Trial ' + empiricalTrials + ' / ' + totalTrials + (anyPass ? ' — system held ✔' : ' — TOTAL FAILURE ✘');
+      trial++;
+      setTimeout(runTrial, 260);
+    }, 350);
+  }
+  runTrial();
+});
+
+buildDice();
+updateTheoretical();
+
+/* ============ SCORED QUIZ ============ */
+let quizScoreCount = 0;
+const quizScoreEl = document.getElementById('quizScore');
+document.querySelectorAll('.quiz-card').forEach(card => {
+  const opts = card.querySelectorAll('.quiz-opt');
+  opts.forEach(opt => {
+    opt.addEventListener('click', () => {
+      if(card.dataset.answered) return;
+      card.dataset.answered = 'true';
+      opts.forEach(o => o.classList.add(o.dataset.correct === 'true' ? 'correct' : 'wrong'));
+      if(opt.dataset.correct === 'true'){
+        quizScoreCount++;
+        quizScoreEl.textContent = quizScoreCount;
+      }
+    });
+  });
+});
+</script>
+</body>
+</html>

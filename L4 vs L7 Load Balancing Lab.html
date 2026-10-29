@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>L4 vs L7 Load Balancing Lab</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f5fa;--panel:#fff;--ink:#14213d;--mute:#58647f;--line:#d6dcea;--soft:#eaeef7;--good:#1b8f4f;--l4:#0f8fb8;--l7:#7a4fd8;
+--c1:#2f6fed;--c2:#1b8f4f;--c3:#d9830b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--l4:#35c6f0;--l7:#b194ff;--c1:#5b94ff;--c2:#3ddc84;--c3:#ffb340}}
+:root[data-theme="dark"]{--bg:#0b1630;--panel:#112247;--ink:#eaf0ff;--mute:#9fb0d6;--line:#25396b;--soft:#182c58;--good:#3ddc84;--l4:#35c6f0;--l7:#b194ff;--c1:#5b94ff;--c2:#3ddc84;--c3:#ffb340}
+[hidden]{display:none!important}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Avenir Next","Trebuchet MS",system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
+h1{font:800 clamp(26px,5vw,38px)/1.1 "Avenir Next Condensed","Arial Narrow",system-ui,sans-serif;margin:0 0 4px}
+h2{font-size:18px;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 14px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
+.bar b{margin-right:4px}
+button{font:inherit;font-weight:700;padding:8px 14px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--ink)}
+button:focus-visible{outline:3px solid var(--c1);outline-offset:2px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;border-top:5px solid var(--k)}
+.k4{--k:var(--l4)}.k7{--k:var(--l7)}
+.box p{margin:0 0 6px;color:var(--mute);font-size:14px}
+svg{width:100%;height:auto;display:block}
+svg text{font-family:inherit;fill:var(--ink)}
+.nd{fill:var(--panel);stroke:var(--line);stroke-width:2}
+.m{fill:var(--mute)!important;font-size:11px}
+.insp{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;min-height:84px;margin-top:6px}
+.insp i{font-style:normal;color:var(--mute)}
+.flash{animation:fl .6s}
+@keyframes fl{40%{stroke-width:7}}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border-radius:12px;overflow:hidden}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
+th{background:var(--ink);color:var(--bg)}
+.tw{overflow-x:auto;margin-top:6px}
+.sum{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:820px){.sum{grid-template-columns:1fr}}
+.sum div{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--k);border-radius:12px;padding:10px 12px}
+@media(prefers-reduced-motion:reduce){.flash{animation:none}}
+</style></head>
+<body><main>
+<h1>L4 vs L7 Load Balancing</h1>
+<p class="sub">Send the same requests through both balancers and compare what each one can see and decide.</p>
+<div class="bar"><b>Send a request:</b>
+<button data-t="0"><span class="sw" style="background:var(--c2)"></span>GET /api/users</button>
+<button data-t="1"><span class="sw" style="background:var(--c1)"></span>GET /static/logo.png</button>
+<button data-t="2"><span class="sw" style="background:var(--c3)"></span>GET /admin/panel</button>
+<button id="burst">Send 9 random</button><button id="clear">Clear</button></div>
+
+<div class="cols">
+<div class="box k4"><h2>L4 balancer (Transport layer)</h2><p>Sees IP and port only. Every server is identical, so it just shares connections out.</p>
+<svg id="s4" viewBox="0 0 380 300" aria-label="L4 load balancer"></svg><div class="insp" id="i4">Send a request to see what L4 can read.</div></div>
+<div class="box k7"><h2>L7 balancer (Application layer)</h2><p>Reads the URL, headers and cookies. Servers are specialists, so it routes by content.</p>
+<svg id="s7" viewBox="0 0 380 300" aria-label="L7 load balancer"></svg><div class="insp" id="i7">Send a request to see what L7 can read.</div></div>
+</div>
+
+<div class="tw"><table><tr><th>Feature</th><th>L4 (Transport)</th><th>L7 (Application)</th></tr>
+<tr><td>Data inspected</td><td>IP, port</td><td>URL, headers, cookies, content</td></tr>
+<tr><td>Protocols</td><td>TCP / UDP</td><td>HTTP / HTTPS, WebSocket</td></tr>
+<tr><td>Routing</td><td>IP/port based</td><td>Path, host or content based</td></tr>
+<tr><td>Speed</td><td>Faster, lower overhead</td><td>Slightly slower, more processing</td></tr>
+<tr><td>Flexibility</td><td>Limited</td><td>High (rewrites, redirects, rate limits)</td></tr>
+<tr><td>Typical tools</td><td>AWS NLB, HAProxy (TCP)</td><td>AWS ALB, Nginx, Traefik</td></tr></table></div>
+<div class="sum"><div class="k4"><b>L4 = fast + simple.</b> Good for high traffic, gaming, streaming and low-latency needs.</div>
+<div class="k7"><b>L7 = smart + flexible.</b> Good for APIs, microservices, A/B tests and canary deploys.</div></div>
+</main>
+<script>
+const NS='http://www.w3.org/2000/svg';
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+const txt=(p,x,y,s,a={})=>{const t=el('text',{x,y,'text-anchor':'middle',...a},p);t.textContent=s;return t};
+function fly(svg,x1,y1,x2,y2,color,dur,done){const c=el('circle',{r:8,stroke:'var(--bg)','stroke-width':2},svg);c.style.fill=color;const t0=performance.now();(function f(t){const p=Math.min(1,(t-t0)/dur);c.setAttribute('cx',x1+(x2-x1)*p);c.setAttribute('cy',y1+(y2-y1)*p);if(p<1)requestAnimationFrame(f);else{c.remove();done&&done()}})(t0)}
+const T=[{p:'/api/users',c:'var(--c2)',n:'/api'},{p:'/static/logo.png',c:'var(--c1)',n:'/static'},{p:'/admin/panel',c:'var(--c3)',n:'/admin'}];
+function build(svg,insp,kind){
+ const col=kind===4?'var(--l4)':'var(--l7)',Y=[55,150,245],LB={x:150,y:150},CX=36;
+ el('rect',{x:CX-22,y:128,width:44,height:44,rx:8,class:'nd'},svg);txt(svg,CX,155,'User',{'font-weight':700,'font-size':12});txt(svg,CX,188,'client',{class:'m'});
+ const lb=el('rect',{x:LB.x-45,y:LB.y-36,width:90,height:72,rx:12,fill:'var(--panel)',stroke:col,'stroke-width':4},svg);
+ txt(svg,LB.x,LB.y-4,'L'+kind,{'font-weight':800,'font-size':20});txt(svg,LB.x,LB.y+16,'balancer',{class:'m'});
+ const S=Y.map((y,i)=>{const s={y,hits:[],g:el('g',{},svg)};el('line',{x1:LB.x+45,y1:LB.y,x2:248,y2:y,stroke:'var(--line)','stroke-width':2,'stroke-dasharray':'5 5'},svg);
+  el('rect',{x:248,y:y-28,width:124,height:56,rx:10,class:'nd'},svg);
+  txt(svg,310,y-10,kind===4?'Server '+(i+1):'Server '+T[i].n,{'font-weight':700,'font-size':13});s.cnt=txt(svg,310,y+22,'0 requests',{class:'m'});return s});
+ let rr=0;
+ function dots(s){s.g.innerHTML='';s.hits.slice(-9).forEach((c,k)=>{const d=el('circle',{cx:262+k*13,cy:s.y+3,r:5},s.g);d.style.fill=c});s.cnt.textContent=s.total+' requests'}
+ S.forEach(s=>s.total=0);
+ return t=>{const r=T[t];
+  fly(svg,CX+22,150,LB.x-45,150,r.c,400,()=>{
+   lb.classList.remove('flash');void lb.getBoundingClientRect();lb.classList.add('flash');
+   let idx;
+   if(kind===4){idx=rr++%3;insp.innerHTML=`<b>Reads:</b> src 203.0.113.7:51234 → dst 10.0.0.1:443<br><i>Can't see: path, headers, cookies (just bytes)</i><br><b>Decision:</b> next in rotation → Server ${idx+1}<br><i>Processing: ~0.2 ms (illustrative)</i>`}
+   else{idx=t;insp.innerHTML=`<b>Reads:</b> GET ${r.p} · Host: shop.com · Cookie: id=42<br><b>Rule matched:</b> path starts with ${r.n}<br><b>Decision:</b> → Server ${r.n}<br><i>Processing: ~0.9 ms (illustrative, parses the request)</i>`}
+   setTimeout(()=>fly(svg,LB.x+45,150,248,S[idx].y,r.c,420,()=>{const s=S[idx];s.hits.push(r.c);s.total++;dots(s)}),kind===4?150:550)})}}
+const send4=build($('#s4'),$('#i4'),4),send7=build($('#s7'),$('#i7'),7);
+function $(s){return document.querySelector(s)}
+const go=t=>{send4(t);send7(t)};
+document.querySelectorAll('.bar button[data-t]').forEach(b=>b.onclick=()=>go(+b.dataset.t));
+$('#burst').onclick=()=>{for(let i=0;i<9;i++)setTimeout(()=>go(Math.floor(Math.random()*3)),i*500)};
+$('#clear').onclick=()=>location.reload();
+</script></body></html>

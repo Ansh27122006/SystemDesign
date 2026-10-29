@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reliability — System Design Characteristics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220; --panel:#121B2E; --panel-2:#0F1729; --border:#22304A;
+    --amber:#F5A623; --teal:#2DD4BF; --red:#EF4444; --text:#E7ECF3; --muted:#8996AC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(245,166,35,0.08), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 110%, rgba(45,212,191,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; padding:32px 20px 64px;
+  }
+  .wrap{max-width:980px;margin:0 auto;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:var(--teal);text-transform:uppercase;margin-bottom:10px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(32px,5vw,44px);margin:0 0 10px;letter-spacing:-0.02em;}
+  .sub{color:var(--muted);max-width:640px;line-height:1.55;font-size:15px;margin-bottom:28px;}
+
+  .status-strip{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-family:'IBM Plex Mono',monospace;font-size:13px;margin-bottom:28px;flex-wrap:wrap;}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+  .dot.pulse{animation:pulse 1.6s ease-in-out infinite;}
+  .dot.down{background:var(--red);}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,0.5);}50%{box-shadow:0 0 0 6px rgba(245,166,35,0);}}
+  .status-strip .label{color:var(--muted);}
+  .status-strip .val{color:var(--text);font-weight:600;}
+  .status-strip .sep{width:1px;height:16px;background:var(--border);}
+
+  .stage{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:14px;height:220px;margin-bottom:2px;overflow:hidden;}
+  .stage svg{position:absolute;inset:0;width:100%;height:100%;}
+  .node{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);z-index:2;}
+  .node .box{width:64px;height:64px;border-radius:12px;background:var(--panel-2);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:6px;transition:all .18s ease;}
+  .client .box, .user .box{border-color:var(--muted);color:var(--text);}
+  .proc .box{border-color:var(--teal);color:var(--teal);}
+  .proc.fail .box{border-color:var(--red);color:var(--red);background:rgba(239,68,68,0.1);box-shadow:0 0 18px rgba(239,68,68,0.3);}
+  .proc.ok-flash .box{box-shadow:0 0 18px rgba(45,212,191,0.35);}
+  .retry-badge{position:absolute;top:-10px;right:-14px;background:var(--amber);color:#1a1200;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;font-family:'IBM Plex Mono',monospace;opacity:0;transition:opacity .2s;}
+  .retry-badge.show{opacity:1;}
+
+  .packet{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--teal);z-index:1;pointer-events:none;box-shadow:0 0 6px rgba(45,212,191,0.8);}
+  .packet.fail{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,0.8);}
+
+  .heartbeat-wrap{background:var(--panel);border:1px solid var(--border);border-top:none;border-radius:0 0 14px 14px;margin-bottom:22px;padding:0;}
+  canvas{display:block;width:100%;height:80px;}
+  .hb-label{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);padding:6px 14px 10px;letter-spacing:0.05em;text-transform:uppercase;}
+
+  .controls{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:22px;}
+  .slider-row{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted);}
+  input[type=range]{width:160px;accent-color:var(--amber);}
+  .slider-val{font-family:'IBM Plex Mono',monospace;color:var(--text);min-width:34px;}
+  .switch-row{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);}
+  .switch{width:42px;height:24px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:all .2s;}
+  .switch.on{background:rgba(245,166,35,0.15);border-color:var(--amber);}
+  .switch.on::after{left:20px;background:var(--amber);}
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;background:transparent;color:var(--text);border:1px solid var(--border);padding:9px 16px;border-radius:8px;cursor:pointer;transition:border-color .2s,color .2s;}
+  button:hover{border-color:var(--teal);color:var(--teal);}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:28px;}
+  .metric{background:var(--panel);padding:16px 18px;}
+  .metric .m-label{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .metric .m-val{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:600;}
+  .metric .m-val.accent{color:var(--amber);}
+  .metric .m-val.danger{color:var(--red);}
+  .metric .m-val.good{color:var(--teal);}
+
+  h2{font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0 0 4px;}
+  .section-sub{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.5;}
+  table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--border);}
+  td{padding:11px 12px;border-bottom:1px solid var(--border);}
+  .note{margin-top:28px;padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:8px;font-size:14px;line-height:1.6;color:var(--text);}
+  .note b{color:var(--teal);}
+  @media (prefers-reduced-motion: reduce){.dot.pulse{animation:none;} .packet{transition:none !important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">System Design Characteristics · 02 / 07</div>
+  <h1>Reliability</h1>
+  <p class="sub">The probability a system performs correctly over a given period, without failing. It's not the same as availability — a system can be "up" and still return wrong or failed results. Watch how retries hide raw failures from the user without actually reducing how often they happen underneath.</p>
+
+  <div class="status-strip">
+    <span class="dot pulse" id="statusDot"></span>
+    <span class="label">Success rate&nbsp;</span><span class="val" id="successVal">100.0%</span>
+    <span class="sep"></span>
+    <span class="label">MTBF (user-facing)&nbsp;</span><span class="val" id="mtbfVal">—</span>
+    <span class="sep"></span>
+    <span class="label">Requests&nbsp;</span><span class="val" id="reqCount">0</span>
+  </div>
+
+  <div class="stage" id="stage">
+    <svg id="lines"></svg>
+  </div>
+  <div class="heartbeat-wrap">
+    <canvas id="hb"></canvas>
+    <div class="hb-label">system health trace — dips mark user-facing failures</div>
+  </div>
+
+  <div class="controls">
+    <div class="slider-row">
+      <span>Underlying failure rate</span>
+      <input type="range" id="failRate" min="0" max="40" value="12">
+      <span class="slider-val" id="failRateVal">12%</span>
+    </div>
+    <div class="switch-row">
+      <div class="switch" id="retrySwitch"></div>
+      <span>Automatic retries (up to 2)</span>
+    </div>
+    <button id="resetBtn">Reset simulation</button>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="m-label">Requests processed</div>
+      <div class="m-val" id="mProcessed">0</div>
+    </div>
+    <div class="metric">
+      <div class="m-label">Raw failures (attempts)</div>
+      <div class="m-val danger" id="mRaw">0</div>
+    </div>
+    <div class="metric">
+      <div class="m-label">User-facing failures</div>
+      <div class="m-val danger" id="mUserFacing">0</div>
+    </div>
+    <div class="metric">
+      <div class="m-label">Retries fired</div>
+      <div class="m-val good" id="mRetries">0</div>
+    </div>
+  </div>
+
+  <h2>Reliability vs. Availability</h2>
+  <p class="section-sub">These two get mixed up constantly. They measure different things, and a system can score well on one and poorly on the other.</p>
+  <table>
+    <thead><tr><th></th><th>Question it answers</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td><b>Availability</b></td><td>Is the system reachable right now?</td><td>The API responds to requests 99.95% of the time.</td></tr>
+      <tr><td><b>Reliability</b></td><td>Does the system behave correctly, without failing, over time?</td><td>Out of 10,000 requests handled, 40 returned wrong or failed results.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Why this distinction matters:</b> raising the failure-rate slider above and enabling retries keeps "success rate" high — the system looks reliable from the outside. But <b>raw failures</b> keeps climbing underneath. Retries are a real technique (used everywhere, from HTTP clients to database drivers) but they mask a root cause; teams that only watch user-facing metrics can miss a degrading dependency until retries stop being enough to cover for it.
+  </div>
+</div>
+
+<script>
+const stage = document.getElementById('stage');
+const linesSvg = document.getElementById('lines');
+const hb = document.getElementById('hb');
+const hbCtx = hb.getContext('2d');
+
+let clientPos, procPos, userPos;
+let failRate = 12;
+let retriesOn = false;
+let processed=0, rawFailures=0, userFacingFailures=0, retriesFired=0;
+let startTime = performance.now();
+let lastUserFailTime = null;
+let mtbfSamples = [];
+let trace = [];
+const TRACE_LEN = 260;
+
+function buildStage(){
+  stage.querySelectorAll('.node').forEach(n=>n.remove());
+  linesSvg.innerHTML = '';
+  const w = stage.clientWidth, h = stage.clientHeight;
+  clientPos = {x: 70, y: h/2};
+  procPos = {x: w/2, y: h/2};
+  userPos = {x: w-70, y: h/2};
+
+  const client = document.createElement('div');
+  client.className = 'node client';
+  client.style.left=(clientPos.x-32)+'px'; client.style.top=(clientPos.y-40)+'px';
+  client.innerHTML = '<div class="box">◆</div><div>client</div>';
+  stage.appendChild(client);
+
+  const proc = document.createElement('div');
+  proc.className = 'node proc';
+  proc.id = 'procNode';
+  proc.style.left=(procPos.x-32)+'px'; proc.style.top=(procPos.y-40)+'px';
+  proc.innerHTML = '<div class="box">⚙</div><div>processor</div><div class="retry-badge" id="retryBadge">RETRY</div>';
+  stage.appendChild(proc);
+
+  const user = document.createElement('div');
+  user.className = 'node user';
+  user.style.left=(userPos.x-32)+'px'; user.style.top=(userPos.y-40)+'px';
+  user.innerHTML = '<div class="box">☺</div><div>user sees</div>';
+  stage.appendChild(user);
+
+  drawLines();
+  resizeCanvas();
+}
+
+function drawLines(){
+  linesSvg.innerHTML='';
+  const ns = 'http://www.w3.org/2000/svg';
+  function line(x1,y1,x2,y2){
+    const l = document.createElementNS(ns,'line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    l.setAttribute('stroke','#8996AC');l.setAttribute('stroke-width','1.5');
+    l.setAttribute('stroke-dasharray','4 4');l.setAttribute('opacity','0.35');
+    linesSvg.appendChild(l);
+  }
+  line(clientPos.x, clientPos.y, procPos.x, procPos.y);
+  line(procPos.x, procPos.y, userPos.x, userPos.y);
+}
+
+function resizeCanvas(){
+  hb.width = hb.clientWidth * devicePixelRatio;
+  hb.height = hb.clientHeight * devicePixelRatio;
+}
+
+document.getElementById('failRate').addEventListener('input', (e)=>{
+  failRate = parseInt(e.target.value);
+  document.getElementById('failRateVal').textContent = failRate+'%';
+});
+
+document.getElementById('retrySwitch').addEventListener('click', function(){
+  retriesOn = !retriesOn;
+  this.classList.toggle('on', retriesOn);
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  processed=0; rawFailures=0; userFacingFailures=0; retriesFired=0;
+  startTime = performance.now();
+  lastUserFailTime = null;
+  mtbfSamples = [];
+  trace = [];
+});
+
+function flashProc(fail){
+  const proc = document.getElementById('procNode');
+  proc.classList.remove('fail','ok-flash');
+  void proc.offsetWidth;
+  proc.classList.add(fail ? 'fail' : 'ok-flash');
+  setTimeout(()=>proc.classList.remove('fail','ok-flash'), 220);
+}
+
+function showRetryBadge(){
+  const badge = document.getElementById('retryBadge');
+  badge.classList.add('show');
+  setTimeout(()=>badge.classList.remove('show'), 280);
+}
+
+function movePacket(from, to, color, cb){
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = reduceMotion ? 0 : 260;
+  const packet = document.createElement('div');
+  packet.className = 'packet' + (color==='fail' ? ' fail' : '');
+  stage.appendChild(packet);
+  packet.style.left=(from.x-3)+'px'; packet.style.top=(from.y-3)+'px';
+  packet.style.transition = `left ${dur}ms linear, top ${dur}ms linear`;
+  requestAnimationFrame(()=>{
+    packet.style.left=(to.x-3)+'px'; packet.style.top=(to.y-3)+'px';
+  });
+  setTimeout(()=>{
+    packet.style.opacity='0';
+    setTimeout(()=>packet.remove(),150);
+    if(cb) cb();
+  }, dur);
+}
+
+function attempt(triesLeft, isRetry){
+  const failed = Math.random()*100 < failRate;
+  rawFailures += failed ? 1 : 0;
+
+  if(isRetry) { retriesFired++; showRetryBadge(); }
+
+  movePacket(clientPos, procPos, failed ? 'fail' : 'ok', ()=>{
+    flashProc(failed);
+    if(!failed){
+      movePacket(procPos, userPos, 'ok', ()=>{
+        trace.push(0);
+      });
+    } else if(retriesOn && triesLeft > 0){
+      setTimeout(()=>attempt(triesLeft-1, true), 180);
+    } else {
+      movePacket(procPos, userPos, 'fail', ()=>{
+        userFacingFailures++;
+        const now = performance.now();
+        if(lastUserFailTime !== null){
+          mtbfSamples.push((now-lastUserFailTime)/1000);
+          if(mtbfSamples.length>20) mtbfSamples.shift();
+        }
+        lastUserFailTime = now;
+        trace.push(1);
+      });
+    }
+  });
+}
+
+function spawnRequest(){
+  processed++;
+  document.getElementById('reqCount').textContent = processed;
+  attempt(retriesOn ? 2 : 0, false);
+}
+
+function drawHeartbeat(){
+  const w = hb.width, h = hb.height;
+  hbCtx.clearRect(0,0,w,h);
+  hbCtx.strokeStyle = '#2DD4BF';
+  hbCtx.lineWidth = 2*devicePixelRatio;
+  hbCtx.beginPath();
+  const n = trace.length;
+  const step = w / TRACE_LEN;
+  const baseline = h*0.55;
+  let x = w - n*step;
+  let started = false;
+  for(let i=0;i<n;i++){
+    const v = trace[i];
+    const y = v===1 ? baseline + h*0.32 : baseline - (i%7===0 ? h*0.12 : 0);
+    if(v===1){ hbCtx.strokeStyle = '#EF4444'; } 
+    if(!started){ hbCtx.moveTo(x,baseline); started=true; }
+    hbCtx.lineTo(x, y);
+    x += step;
+    if(v===1){
+      hbCtx.lineTo(x, baseline);
+      hbCtx.stroke();
+      hbCtx.beginPath();
+      hbCtx.moveTo(x,baseline);
+      hbCtx.strokeStyle = '#2DD4BF';
+    }
+  }
+  hbCtx.lineTo(w, baseline);
+  hbCtx.stroke();
+}
+
+function updateMetrics(){
+  document.getElementById('mProcessed').textContent = processed;
+  document.getElementById('mRaw').textContent = rawFailures;
+  document.getElementById('mUserFacing').textContent = userFacingFailures;
+  document.getElementById('mRetries').textContent = retriesFired;
+  const successRate = processed>0 ? ((processed-userFacingFailures)/processed*100) : 100;
+  document.getElementById('successVal').textContent = successRate.toFixed(1)+'%';
+  if(mtbfSamples.length>0){
+    const avg = mtbfSamples.reduce((a,b)=>a+b,0)/mtbfSamples.length;
+    document.getElementById('mtbfVal').textContent = avg.toFixed(1)+'s';
+  } else {
+    document.getElementById('mtbfVal').textContent = '—';
+  }
+  const dot = document.getElementById('statusDot');
+  if(rawFailures>0 && (Date.now()%1000<150)){
+    dot.classList.add('down');
+  } else {
+    dot.classList.remove('down');
+  }
+}
+
+function loop(){
+  drawHeartbeat();
+  updateMetrics();
+  if(trace.length>TRACE_LEN) trace.shift();
+  requestAnimationFrame(loop);
+}
+
+buildStage();
+requestAnimationFrame(loop);
+setInterval(spawnRequest, 500);
+window.addEventListener('resize', ()=>{ buildStage(); });
+</script>
+</body>
+</html>
